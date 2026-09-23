@@ -1,6 +1,16 @@
+import json
+
 from generators.hospital_generator import generate_hospitals
 from generators.department_generator import generate_departments
 from generators.doctor_generator import generate_doctors
+
+
+# --------------------------------
+# Load configuration
+# --------------------------------
+
+with open("config/config.json", "r", encoding="utf-8") as file:
+    config = json.load(file)
 
 
 # --------------------------------
@@ -35,7 +45,8 @@ doctor_schema_path = "schema/doctor_schema.json"
 doctor_df = generate_doctors(
     doctor_schema_path,
     hospital_df,
-    department_df
+    department_df,
+    config
 )
 
 
@@ -54,7 +65,7 @@ print(doctor_df)
 
 
 # --------------------------------
-# Output
+# Save output
 # --------------------------------
 
 hospital_df.to_csv(
@@ -73,4 +84,4 @@ doctor_df.to_csv(
 )
 
 
-print("\nAll hospital master data generated successfully!")
+print("\nAll data generated successfully!")

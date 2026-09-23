@@ -2,7 +2,7 @@ import json
 import pandas as pd
 
 
-def generate_departments(schema_path, hospital_df):
+def generate_doctors(schema_path,hospital_df,department_df,config):
     """
     Generate departments for each hospital.
     """

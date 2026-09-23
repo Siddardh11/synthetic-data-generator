@@ -13,7 +13,7 @@ def generate_doctors(schema_path, hospital_df, department_df):
     with open(schema_path, "r", encoding="utf-8") as file:
         schema = json.load(file)
 
-    doctors_per_hospital = schema["doctors_per_hospital"]
+    doctors_per_hospital = config["record_counts"]["doctors_per_hospital"]
 
     data = []
 
