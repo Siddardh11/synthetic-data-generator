@@ -7,12 +7,22 @@ import random
 fake = Faker()
 
 
-def generate_doctors(schema_path, hospital_df, department_df):
+def generate_doctors(
+    schema_path,
+    hospital_df,
+    department_df,
+    config
+):
+    """
+    Generate synthetic doctors while maintaining
+    valid hospital-department relationships.
+    """
 
-    # Read schema
+    # Read doctor schema
     with open(schema_path, "r", encoding="utf-8") as file:
         schema = json.load(file)
 
+    # Get number of doctors per hospital from config
     doctors_per_hospital = config["record_counts"]["doctors_per_hospital"]
 
     data = []
@@ -27,12 +37,15 @@ def generate_doctors(schema_path, hospital_df, department_df):
             department_df["hospital_id"] == hospital_id
         ]
 
-        department_ids = hospital_departments["department_id"].tolist()
+        # Get department IDs
+        department_ids = hospital_departments[
+            "department_id"
+        ].tolist()
 
         # Generate doctors
         for _ in range(doctors_per_hospital):
 
-            # Select a department ONLY from this hospital
+            # Select a department belonging to this hospital
             department_id = random.choice(department_ids)
 
             # Get department name

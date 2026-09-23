@@ -2,7 +2,11 @@ import json
 import pandas as pd
 
 
-def generate_doctors(schema_path,hospital_df,department_df,config):
+def generate_departments(
+    schema_path,
+    hospital_df,
+    config
+):
     """
     Generate departments for each hospital.
     """
@@ -11,16 +15,32 @@ def generate_doctors(schema_path,hospital_df,department_df,config):
     with open(schema_path, "r", encoding="utf-8") as file:
         schema = json.load(file)
 
+    # Get department list from schema
     department_names = schema["departments"]
+
+    # Get desired number of departments per hospital
+    departments_per_hospital = config["record_counts"]["departments_per_hospital"]
+
+    # Make sure requested number does not exceed available departments
+    if departments_per_hospital > len(department_names):
+        raise ValueError(
+            f"Requested {departments_per_hospital} departments per hospital, "
+            f"but only {len(department_names)} departments are defined in the schema."
+        )
 
     data = []
 
     department_id = 1
 
-    # Create departments for every hospital
+    # Generate departments for every hospital
     for hospital_id in hospital_df["hospital_id"]:
 
-        for department_name in department_names:
+        # Select required number of departments
+        selected_departments = department_names[
+            :departments_per_hospital
+        ]
+
+        for department_name in selected_departments:
 
             department = {
                 "department_id": department_id,

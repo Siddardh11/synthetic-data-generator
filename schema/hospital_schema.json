@@ -23,9 +23,6 @@
             "name": "hospital_type",
             "type": "category",
             "allowed_values": [
-                "Multi-Specialty",
-                "Multi-Specialty",
-                "Multi-Specialty",
                 "Multi-Specialty"
             ]
         },

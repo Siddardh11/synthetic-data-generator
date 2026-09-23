@@ -1,0 +1,48 @@
+{
+    "table_name": "patient",
+
+    "columns": [
+        {
+            "name": "patient_id",
+            "type": "integer",
+            "primary_key": true
+        },
+        {
+            "name": "patient_name",
+            "type": "name"
+        },
+        {
+            "name": "gender",
+            "type": "category",
+            "allowed_values": [
+                "Male",
+                "Female"
+            ]
+        },
+        {
+            "name": "date_of_birth",
+            "type": "date"
+        },
+        {
+            "name": "age",
+            "type": "integer"
+        },
+        {
+            "name": "city",
+            "type": "string"
+        },
+        {
+            "name": "registration_date",
+            "type": "date"
+        },
+        {
+            "name": "insurance_type",
+            "type": "category",
+            "allowed_values": [
+                "Insurance",
+                "Self Pay",
+                "Corporate"
+            ]
+        }
+    ]
+}

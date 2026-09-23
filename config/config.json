@@ -2,7 +2,7 @@
     "record_counts": {
         "hospitals": 4,
         "departments_per_hospital": 15,
-        "doctors_per_hospital": 10,
+        "doctors_per_hospital": 20,
         "patients": 100,
         "visits": 300,
         "admissions": 50,
