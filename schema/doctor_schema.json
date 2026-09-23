@@ -1,0 +1,43 @@
+{
+    "table_name": "doctor",
+
+    "columns": [
+        {
+            "name": "doctor_id",
+            "type": "integer",
+            "primary_key": true
+        },
+        {
+            "name": "doctor_name",
+            "type": "name"
+        },
+        {
+            "name": "hospital_id",
+            "type": "integer",
+            "foreign_key": "hospital.hospital_id"
+        },
+        {
+            "name": "department_id",
+            "type": "integer",
+            "foreign_key": "department.department_id"
+        },
+        {
+            "name": "specialization",
+            "type": "string"
+        },
+        {
+            "name": "experience_years",
+            "type": "integer"
+        },
+        {
+            "name": "consultation_fee",
+            "type": "float"
+        },
+        {
+            "name": "joining_date",
+            "type": "date"
+        }
+    ],
+
+    "doctors_per_hospital": 10
+}

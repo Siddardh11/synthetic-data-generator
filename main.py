@@ -1,5 +1,6 @@
 from generators.hospital_generator import generate_hospitals
 from generators.department_generator import generate_departments
+from generators.doctor_generator import generate_doctors
 
 
 # --------------------------------
@@ -11,9 +12,6 @@ hospital_schema_path = "schema/hospital_schema.json"
 hospital_df = generate_hospitals(
     hospital_schema_path
 )
-
-print("\nHospital Data:")
-print(hospital_df)
 
 
 # --------------------------------
@@ -27,8 +25,32 @@ department_df = generate_departments(
     hospital_df
 )
 
+
+# --------------------------------
+# Doctor
+# --------------------------------
+
+doctor_schema_path = "schema/doctor_schema.json"
+
+doctor_df = generate_doctors(
+    doctor_schema_path,
+    hospital_df,
+    department_df
+)
+
+
+# --------------------------------
+# Display
+# --------------------------------
+
+print("\nHospital Data:")
+print(hospital_df)
+
 print("\nDepartment Data:")
 print(department_df)
+
+print("\nDoctor Data:")
+print(doctor_df)
 
 
 # --------------------------------
@@ -45,5 +67,10 @@ department_df.to_csv(
     index=False
 )
 
+doctor_df.to_csv(
+    "output/doctor.csv",
+    index=False
+)
 
-print("\nHospital and department data generated successfully!")
+
+print("\nAll hospital master data generated successfully!")
