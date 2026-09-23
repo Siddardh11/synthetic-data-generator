@@ -1042,6 +1042,20 @@ date_failures = 0
 
 today = pd.Timestamp.today().normalize()
 
+# ========================================
+# Configured Historical Date Range
+# ========================================
+
+date_range = config["date_range"]
+
+historical_start = pd.to_datetime(
+    date_range["start_date"]
+).normalize()
+
+historical_end = pd.to_datetime(
+    date_range["end_date"]
+).normalize()
+
 
 # ========================================
 # Patient Date Validation
@@ -1568,11 +1582,377 @@ date_failures += surgery_failures
 
 
 # ========================================
+# Historical Date Range Validation
+# ========================================
+
+historical_failures = 0
+
+print("\n----------------------------------------")
+print(
+    f"Configured historical period: "
+    f"{historical_start.date()} → "
+    f"{historical_end.date()}"
+)
+
+
+def validate_historical_range(df, date_column, table_name):
+
+    failures = 0
+
+    dates = pd.to_datetime(
+        df[date_column],
+        errors="coerce"
+    )
+
+    invalid_dates = dates[
+        dates.notna()
+        &
+        (
+            (dates < historical_start)
+            |
+            (dates > historical_end)
+        )
+    ]
+
+    if len(invalid_dates) > 0:
+
+        failures = len(invalid_dates)
+
+        print(
+            f"✗ {table_name}.{date_column}: "
+            f"{failures} dates outside "
+            f"historical range"
+        )
+
+    else:
+
+        print(
+            f"✓ {table_name}.{date_column}: "
+            f"within historical range"
+        )
+
+    return failures
+
+
+historical_failures += validate_historical_range(
+    tables["patient"],
+    "registration_date",
+    "patient"
+)
+
+historical_failures += validate_historical_range(
+    tables["visit"],
+    "visit_date",
+    "visit"
+)
+
+historical_failures += validate_historical_range(
+    tables["admission"],
+    "admission_date",
+    "admission"
+)
+
+historical_failures += validate_historical_range(
+    tables["admission"],
+    "discharge_date",
+    "admission"
+)
+
+historical_failures += validate_historical_range(
+    tables["billing"],
+    "bill_date",
+    "billing"
+)
+
+historical_failures += validate_historical_range(
+    tables["diagnostic"],
+    "test_date",
+    "diagnostic"
+)
+
+historical_failures += validate_historical_range(
+    tables["surgery"],
+    "procedure_date",
+    "surgery"
+)
+
+
+# ========================================
+# Actual Historical Coverage
+# ========================================
+
+coverage_tables = {
+    "patient": (
+        tables["patient"],
+        "registration_date"
+    ),
+    "visit": (
+        tables["visit"],
+        "visit_date"
+    ),
+    "admission": (
+        tables["admission"],
+        "admission_date"
+    ),
+    "billing": (
+        tables["billing"],
+        "bill_date"
+    ),
+    "diagnostic": (
+        tables["diagnostic"],
+        "test_date"
+    ),
+    "surgery": (
+        tables["surgery"],
+        "procedure_date"
+    )
+}
+
+for table_name, (df, date_column) in coverage_tables.items():
+
+    dates = pd.to_datetime(
+        df[date_column],
+        errors="coerce"
+    ).dropna()
+
+    if len(dates) == 0:
+
+        historical_failures += 1
+
+        print(
+            f"✗ {table_name}: no valid dates available"
+        )
+
+        continue
+
+    print(
+        f"✓ {table_name} coverage: "
+        f"{dates.min().date()} → "
+        f"{dates.max().date()}"
+    )
+
+
+# ========================================
+# Step 2 — Monthly / Quarterly / Yearly
+#              Distribution Validation
+# ========================================
+
+print("\n----------------------------------------")
+print("DATE DISTRIBUTION & COVERAGE VALIDATION")
+print("----------------------------------------")
+
+
+distribution_failures = 0
+
+
+def validate_date_distribution(
+    df,
+    date_column,
+    table_name,
+    minimum_active_months=3,
+    minimum_active_quarters=2,
+    minimum_active_years=1,
+    max_month_share=0.50
+):
+    """Check whether records are reasonably distributed over time."""
+
+    failures = 0
+
+    dates = pd.to_datetime(
+        df[date_column],
+        errors="coerce"
+    ).dropna()
+
+    if len(dates) == 0:
+        print(
+            f"✗ {table_name}: no valid dates for distribution check"
+        )
+        return 1
+
+    # ----------------------------------------
+    # Monthly coverage
+    # ----------------------------------------
+
+    monthly_counts = dates.dt.to_period("M").value_counts()
+    active_months = len(monthly_counts)
+
+    if active_months < minimum_active_months:
+
+        failures += 1
+
+        print(
+            f"✗ {table_name}: only {active_months} "
+            f"active months; expected at least "
+            f"{minimum_active_months}"
+        )
+
+    else:
+
+        print(
+            f"✓ {table_name}: monthly coverage "
+            f"across {active_months} months"
+        )
+
+    # ----------------------------------------
+    # Monthly concentration
+    # ----------------------------------------
+
+    largest_month_count = monthly_counts.max()
+    largest_month_share = largest_month_count / len(dates)
+
+    if largest_month_share > max_month_share:
+
+        failures += 1
+
+        largest_month = monthly_counts.idxmax()
+
+        print(
+            f"✗ {table_name}: {largest_month} contains "
+            f"{largest_month_count}/{len(dates)} records "
+            f"({largest_month_share:.1%}), exceeding "
+            f"the {max_month_share:.0%} limit"
+        )
+
+    else:
+
+        print(
+            f"✓ {table_name}: no excessive monthly "
+            f"concentration "
+            f"(max {largest_month_share:.1%})"
+        )
+
+    # ----------------------------------------
+    # Quarterly coverage
+    # ----------------------------------------
+
+    quarterly_counts = dates.dt.to_period("Q").value_counts()
+    active_quarters = len(quarterly_counts)
+
+    if active_quarters < minimum_active_quarters:
+
+        failures += 1
+
+        print(
+            f"✗ {table_name}: only {active_quarters} "
+            f"active quarters; expected at least "
+            f"{minimum_active_quarters}"
+        )
+
+    else:
+
+        print(
+            f"✓ {table_name}: quarterly coverage "
+            f"across {active_quarters} quarters"
+        )
+
+    # ----------------------------------------
+    # Yearly coverage
+    # ----------------------------------------
+
+    yearly_counts = dates.dt.year.value_counts()
+    active_years = len(yearly_counts)
+
+    if active_years < minimum_active_years:
+
+        failures += 1
+
+        print(
+            f"✗ {table_name}: only {active_years} "
+            f"active years; expected at least "
+            f"{minimum_active_years}"
+        )
+
+    else:
+
+        print(
+            f"✓ {table_name}: yearly coverage "
+            f"across {active_years} years"
+        )
+
+    return failures
+
+
+# Larger datasets should cover more months.
+distribution_failures += validate_date_distribution(
+    tables["patient"],
+    "registration_date",
+    "patient",
+    minimum_active_months=6,
+    minimum_active_quarters=4,
+    minimum_active_years=2,
+    max_month_share=0.25
+)
+
+distribution_failures += validate_date_distribution(
+    tables["visit"],
+    "visit_date",
+    "visit",
+    minimum_active_months=6,
+    minimum_active_quarters=4,
+    minimum_active_years=2,
+    max_month_share=0.25
+)
+
+distribution_failures += validate_date_distribution(
+    tables["admission"],
+    "admission_date",
+    "admission",
+    minimum_active_months=4,
+    minimum_active_quarters=3,
+    minimum_active_years=2,
+    max_month_share=0.35
+)
+
+distribution_failures += validate_date_distribution(
+    tables["billing"],
+    "bill_date",
+    "billing",
+    minimum_active_months=6,
+    minimum_active_quarters=4,
+    minimum_active_years=2,
+    max_month_share=0.25
+)
+
+distribution_failures += validate_date_distribution(
+    tables["diagnostic"],
+    "test_date",
+    "diagnostic",
+    minimum_active_months=6,
+    minimum_active_quarters=4,
+    minimum_active_years=2,
+    max_month_share=0.25
+)
+
+distribution_failures += validate_date_distribution(
+    tables["surgery"],
+    "procedure_date",
+    "surgery",
+    minimum_active_months=4,
+    minimum_active_quarters=3,
+    minimum_active_years=2,
+    max_month_share=0.40
+)
+
+
+historical_failures += distribution_failures
+
+date_failures += historical_failures
+
+print("----------------------------------------")
+print(
+    f"Historical/distribution failures : "
+    f"{historical_failures}"
+)
+print(
+    f"Date/business rule failures : "
+    f"{date_failures}"
+)
+
+# ========================================
 # Date Validation Summary
 # ========================================
 
 print("----------------------------------------")
-
 print(
     f"Date/business rule failures : "
     f"{date_failures}"

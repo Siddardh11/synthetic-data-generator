@@ -18,6 +18,9 @@ def generate_visits(
     """
     Generate synthetic patient visits while maintaining
     valid patient, hospital, department and doctor relationships.
+
+    Visit dates are generated inside the configured historical
+    period and cannot occur before patient registration.
     """
 
     # --------------------------------
@@ -38,6 +41,20 @@ def generate_visits(
     number_of_visits = config[
         "record_counts"
     ]["visits"]
+
+    # --------------------------------
+    # Get configured historical range
+    # --------------------------------
+
+    date_range = config["date_range"]
+
+    historical_start = pd.to_datetime(
+        date_range["start_date"]
+    ).date()
+
+    historical_end = pd.to_datetime(
+        date_range["end_date"]
+    ).date()
 
     data = []
 
@@ -82,9 +99,33 @@ def generate_visits(
 
         patient_id = patient["patient_id"]
 
-        registration_date = patient[
-            "registration_date"
-        ]
+        registration_date = pd.to_datetime(
+            patient["registration_date"]
+        ).date()
+
+        # --------------------------------
+        # Visit cannot happen before
+        # patient registration.
+        #
+        # Also keep the visit inside the
+        # configured historical period.
+        # --------------------------------
+
+        visit_start = max(
+            registration_date,
+            historical_start
+        )
+
+        visit_end = historical_end
+
+        # Safety check
+        if visit_start > visit_end:
+            visit_start = visit_end
+
+        visit_date = fake.date_between(
+            start_date=visit_start,
+            end_date=visit_end
+        )
 
         # --------------------------------
         # Select a doctor
@@ -101,34 +142,38 @@ def generate_visits(
         department_id = doctor["department_id"]
 
         # --------------------------------
-        # Generate visit date
-        # Visit cannot happen before
-        # patient registration
-        # --------------------------------
-
-        visit_date = fake.date_between(
-            start_date=registration_date,
-            end_date="today"
-        )
-
-        # --------------------------------
         # Visit type
         # --------------------------------
 
-        visit_type = random.choice([
-            "OP",
-            "IP",
-            "Emergency"
-        ])
+        visit_type = random.choices(
+            [
+                "OP",
+                "IP",
+                "Emergency"
+            ],
+            weights=[
+                0.70,
+                0.20,
+                0.10
+            ],
+            k=1
+        )[0]
 
         # --------------------------------
         # Visit status
         # --------------------------------
 
-        visit_status = random.choice([
-            "Completed",
-            "Cancelled"
-        ])
+        visit_status = random.choices(
+            [
+                "Completed",
+                "Cancelled"
+            ],
+            weights=[
+                0.95,
+                0.05
+            ],
+            k=1
+        )[0]
 
         # --------------------------------
         # Consultation fee
@@ -143,11 +188,19 @@ def generate_visits(
         # Visit source
         # --------------------------------
 
-        source = random.choice([
-            "Walk-in",
-            "Appointment",
-            "Referral"
-        ])
+        source = random.choices(
+            [
+                "Walk-in",
+                "Appointment",
+                "Referral"
+            ],
+            weights=[
+                0.45,
+                0.45,
+                0.10
+            ],
+            k=1
+        )[0]
 
         # --------------------------------
         # Create visit record

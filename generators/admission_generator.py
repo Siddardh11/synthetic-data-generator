@@ -19,6 +19,17 @@ def generate_admissions(
     """
     Generate synthetic inpatient admissions while maintaining
     valid patient, hospital, department and doctor relationships.
+
+    Admission characteristics are correlated so that:
+    - Emergency admissions are more likely to use ICU.
+    - Planned admissions are more likely to use General,
+      Semi-Private and Private wards.
+    - ICU admissions generally have longer stays.
+    - Emergency admissions generally have longer stays than
+      planned admissions.
+    - Discharge dates remain logically consistent with
+      admission dates.
+    - Ongoing admissions are recent and have no discharge date.
     """
 
     # --------------------------------
@@ -39,6 +50,24 @@ def generate_admissions(
     number_of_admissions = config[
         "record_counts"
     ]["admissions"]
+
+    # --------------------------------
+    # Historical date range
+    # --------------------------------
+
+    historical_start = date.fromisoformat(
+        config["date_range"]["start_date"]
+    )
+
+    historical_end = date.fromisoformat(
+        config["date_range"]["end_date"]
+    )
+
+    # Never generate dates after today.
+    effective_end = min(
+        historical_end,
+        date.today()
+    )
 
     # --------------------------------
     # Prepare patient records
@@ -69,10 +98,6 @@ def generate_admissions(
 
     # --------------------------------
     # Diagnosis categories
-    #
-    # These are synthetic categories
-    # because no fixed list was provided
-    # in the requirements.
     # --------------------------------
 
     diagnosis_categories = [
@@ -113,6 +138,16 @@ def generate_admissions(
         ]
 
         # --------------------------------
+        # Convert registration date
+        # --------------------------------
+
+        if isinstance(registration_date, str):
+
+            registration_date = date.fromisoformat(
+                registration_date
+            )
+
+        # --------------------------------
         # Select doctor
         # --------------------------------
 
@@ -127,36 +162,66 @@ def generate_admissions(
         department_id = doctor["department_id"]
 
         # --------------------------------
-        # Admission date
-        #
-        # Admission cannot happen before
-        # patient registration.
-        # --------------------------------
-
-        admission_date = fake.date_between(
-            start_date=registration_date,
-            end_date="today"
-        )
-
-        # --------------------------------
         # Admission type
+        #
+        # Planned admissions are slightly
+        # more common than emergency.
         # --------------------------------
 
-        admission_type = random.choice([
-            "Emergency",
-            "Planned"
-        ])
+        admission_type = random.choices(
+            [
+                "Planned",
+                "Emergency"
+            ],
+            weights=[
+                0.55,
+                0.45
+            ],
+            k=1
+        )[0]
 
         # --------------------------------
         # Ward type
+        #
+        # Ward selection depends partly
+        # on admission type.
         # --------------------------------
 
-        ward_type = random.choice([
-            "General",
-            "Semi-Private",
-            "Private",
-            "ICU"
-        ])
+        if admission_type == "Emergency":
+
+            ward_type = random.choices(
+                [
+                    "General",
+                    "Semi-Private",
+                    "Private",
+                    "ICU"
+                ],
+                weights=[
+                    0.35,
+                    0.20,
+                    0.10,
+                    0.35
+                ],
+                k=1
+            )[0]
+
+        else:
+
+            ward_type = random.choices(
+                [
+                    "General",
+                    "Semi-Private",
+                    "Private",
+                    "ICU"
+                ],
+                weights=[
+                    0.40,
+                    0.30,
+                    0.25,
+                    0.05
+                ],
+                k=1
+            )[0]
 
         # --------------------------------
         # Diagnosis category
@@ -168,54 +233,231 @@ def generate_admissions(
 
         # --------------------------------
         # Admission status
+        #
+        # Most admissions are discharged.
+        # A smaller portion are ongoing.
         # --------------------------------
 
-        admission_status = random.choice([
-            "Discharged",
-            "Ongoing"
-        ])
+        admission_status = random.choices(
+            [
+                "Discharged",
+                "Ongoing"
+            ],
+            weights=[
+                0.92,
+                0.08
+            ],
+            k=1
+        )[0]
 
         # --------------------------------
-        # Discharge date + length of stay
+        # Determine valid admission range
+        # --------------------------------
+
+        admission_start = max(
+            registration_date,
+            historical_start
+        )
+
+        # --------------------------------
+        # Admission date
+        #
+        # Discharged admissions:
+        #   Can occur anywhere in the
+        #   historical period.
+        #
+        # Ongoing admissions:
+        #   Must be recent so that the
+        #   calculated ongoing LOS remains
+        #   realistic.
+        # --------------------------------
+
+        if admission_status == "Ongoing":
+
+            # Keep ongoing admissions within
+            # the last 30 days.
+
+            recent_start = effective_end - timedelta(
+                days=30
+            )
+
+            admission_start = max(
+                admission_start,
+                recent_start
+            )
+
+            if admission_start > effective_end:
+
+                admission_start = effective_end
+
+            admission_date = fake.date_between(
+                start_date=admission_start,
+                end_date=effective_end
+            )
+
+        else:
+
+            if admission_start > effective_end:
+
+                admission_start = effective_end
+
+            admission_date = fake.date_between(
+                start_date=admission_start,
+                end_date=effective_end
+            )
+
+        # --------------------------------
+        # Length of stay
+        #
+        # LOS depends on:
+        # - Admission type
+        # - Ward type
+        #
+        # ICU generally has the longest
+        # expected stay.
+        # --------------------------------
+
+        if ward_type == "ICU":
+
+            if admission_type == "Emergency":
+
+                stay_days = random.randint(
+                    5,
+                    21
+                )
+
+            else:
+
+                stay_days = random.randint(
+                    3,
+                    14
+                )
+
+        elif ward_type == "Private":
+
+            if admission_type == "Emergency":
+
+                stay_days = random.randint(
+                    3,
+                    12
+                )
+
+            else:
+
+                stay_days = random.randint(
+                    2,
+                    8
+                )
+
+        elif ward_type == "Semi-Private":
+
+            if admission_type == "Emergency":
+
+                stay_days = random.randint(
+                    3,
+                    10
+                )
+
+            else:
+
+                stay_days = random.randint(
+                    2,
+                    7
+                )
+
+        else:
+
+            # General ward
+
+            if admission_type == "Emergency":
+
+                stay_days = random.randint(
+                    2,
+                    8
+                )
+
+            else:
+
+                stay_days = random.randint(
+                    1,
+                    6
+                )
+
+        # --------------------------------
+        # Discharged admission
         # --------------------------------
 
         if admission_status == "Discharged":
-
-            # Generate a stay between 1 and 30 days
-            stay_days = random.randint(1, 30)
 
             discharge_date = (
                 admission_date
                 + timedelta(days=stay_days)
             )
 
-            # Don't generate a future discharge
-            # date for a completed admission.
+            # --------------------------------
+            # Do not allow discharge after
+            # the configured historical end.
+            # --------------------------------
+
+            if discharge_date > historical_end:
+
+                discharge_date = historical_end
+
+            # --------------------------------
+            # Do not allow discharge after
+            # today.
+            # --------------------------------
+
             if discharge_date > date.today():
 
                 discharge_date = date.today()
 
-                stay_days = (
-                    discharge_date - admission_date
-                ).days
+            # --------------------------------
+            # Recalculate LOS from the actual
+            # admission and discharge dates.
+            # --------------------------------
 
-                # If admission happened today,
-                # the stay is 0 days.
-                if stay_days < 0:
-                    stay_days = 0
+            stay_days = (
+                discharge_date - admission_date
+            ).days
+
+            # --------------------------------
+            # Protect against negative LOS.
+            # --------------------------------
+
+            if stay_days < 0:
+
+                stay_days = 0
+
+                discharge_date = admission_date
 
             length_of_stay = stay_days
 
+        # --------------------------------
+        # Ongoing admission
+        # --------------------------------
+
         else:
 
-            # Ongoing admission has no discharge date.
+            # Ongoing admissions do not have
+            # a discharge date.
+
             discharge_date = None
+
+            # IMPORTANT:
+            # The validator defines ongoing LOS
+            # as today - admission_date.
+            #
+            # Therefore we calculate it exactly
+            # that way instead of randomly assigning
+            # a separate LOS.
 
             length_of_stay = (
                 date.today() - admission_date
             ).days
 
             if length_of_stay < 0:
+
                 length_of_stay = 0
 
         # --------------------------------

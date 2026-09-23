@@ -2,7 +2,7 @@ import json
 import pandas as pd
 from faker import Faker
 import random
-from datetime import date
+from datetime import date, datetime
 
 
 fake = Faker()
@@ -57,6 +57,23 @@ def generate_patients(schema_path, config):
 
 
     # --------------------------------
+    # Get historical date range
+    # --------------------------------
+
+    date_range = config["date_range"]
+
+    start_date = datetime.strptime(
+        date_range["start_date"],
+        "%Y-%m-%d"
+    ).date()
+
+    end_date = datetime.strptime(
+        date_range["end_date"],
+        "%Y-%m-%d"
+    ).date()
+
+
+    # --------------------------------
     # Generate patients
     # --------------------------------
 
@@ -97,8 +114,8 @@ def generate_patients(schema_path, config):
             "city": fake.city(),
 
             "registration_date": fake.date_between(
-                start_date="-5y",
-                end_date="today"
+                start_date=start_date,
+                end_date=end_date
             ),
 
             "insurance_type": random.choice([

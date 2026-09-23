@@ -118,25 +118,6 @@ admission_df = generate_admissions(
 
 
 # ========================================
-# Billing
-# ========================================
-
-billing_schema_path = (
-    "schema/billing_schema.json"
-)
-
-billing_df = generate_billing(
-    billing_schema_path,
-    patient_df,
-    visit_df,
-    admission_df,
-    hospital_df,
-    department_df,
-    config
-)
-
-
-# ========================================
 # Diagnostic Test
 # ========================================
 
@@ -162,6 +143,27 @@ surgery_schema_path = (
 surgery_df = generate_surgeries(
     surgery_schema_path,
     admission_df,
+    config
+)
+
+
+# ========================================
+# Billing
+# ========================================
+
+billing_schema_path = (
+    "schema/billing_schema.json"
+)
+
+billing_df = generate_billing(
+    billing_schema_path,
+    patient_df,
+    visit_df,
+    admission_df,
+    diagnostic_df,
+    surgery_df,
+    hospital_df,
+    department_df,
     config
 )
 

@@ -18,6 +18,9 @@ def generate_diagnostics(
     Each diagnostic test is linked to an existing visit,
     ensuring valid patient, hospital, department and
     doctor relationships.
+
+    Diagnostic dates are generated on the same day or
+    within a few days after the associated visit.
     """
 
     # --------------------------------
@@ -38,6 +41,20 @@ def generate_diagnostics(
     number_of_diagnostics = config[
         "record_counts"
     ]["diagnostic_tests"]
+
+    # --------------------------------
+    # Get configured historical range
+    # --------------------------------
+
+    date_range = config["date_range"]
+
+    historical_start = pd.to_datetime(
+        date_range["start_date"]
+    ).date()
+
+    historical_end = pd.to_datetime(
+        date_range["end_date"]
+    ).date()
 
     # --------------------------------
     # Prepare visit records
@@ -121,15 +138,30 @@ def generate_diagnostics(
 
         doctor_id = visit["doctor_id"]
 
-        visit_date = visit["visit_date"]
+        visit_date = pd.to_datetime(
+            visit["visit_date"]
+        ).date()
 
         # --------------------------------
         # Select test
         # --------------------------------
 
-        test_name = random.choice(
-            list(test_categories.keys())
-        )
+        test_name = random.choices(
+            list(test_categories.keys()),
+            weights=[
+                0.22,  # CBC
+                0.15,  # Blood Sugar
+                0.08,  # Lipid Profile
+                0.10,  # ECG
+                0.12,  # X-Ray
+                0.06,  # CT Scan
+                0.04,  # MRI
+                0.08,  # Ultrasound
+                0.08,  # Kidney Function Test
+                0.07   # Liver Function Test
+            ],
+            k=1
+        )[0]
 
         test_category = test_categories[
             test_name
@@ -138,23 +170,47 @@ def generate_diagnostics(
         # --------------------------------
         # Test date
         #
-        # Diagnostic test cannot happen
-        # before the associated visit.
+        # Diagnostic test can happen on
+        # the visit date or shortly after.
+        #
+        # Maximum delay = 3 days.
+        # Never exceed configured
+        # historical_end.
         # --------------------------------
 
+        test_start = max(
+            visit_date,
+            historical_start
+        )
+
+        test_end = min(
+            visit_date + pd.Timedelta(days=3).to_pytimedelta(),
+            historical_end
+        )
+
+        if test_start > test_end:
+            test_start = test_end
+
         test_date = fake.date_between(
-            start_date=visit_date,
-            end_date="today"
+            start_date=test_start,
+            end_date=test_end
         )
 
         # --------------------------------
         # Test status
         # --------------------------------
 
-        test_status = random.choice([
-            "Completed",
-            "Pending"
-        ])
+        test_status = random.choices(
+            [
+                "Completed",
+                "Pending"
+            ],
+            weights=[
+                0.90,
+                0.10
+            ],
+            k=1
+        )[0]
 
         # --------------------------------
         # Test amount
