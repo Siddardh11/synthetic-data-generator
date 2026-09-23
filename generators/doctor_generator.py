@@ -3,7 +3,6 @@ import pandas as pd
 from faker import Faker
 import random
 
-
 fake = Faker()
 
 
@@ -13,46 +12,89 @@ def generate_doctors(
     department_df,
     config
 ):
-    """
-    Generate synthetic doctors while maintaining
-    valid hospital-department relationships.
-    """
 
-    # Read doctor schema
     with open(schema_path, "r", encoding="utf-8") as file:
         schema = json.load(file)
 
-    # Get number of doctors per hospital from config
-    doctors_per_hospital = config["record_counts"]["doctors_per_hospital"]
+    doctors_per_hospital = config[
+        "record_counts"
+    ]["doctors_per_hospital"]
 
     data = []
 
     doctor_id = 1
 
-    # Generate doctors hospital by hospital
     for hospital_id in hospital_df["hospital_id"]:
 
-        # Get departments belonging to this hospital
         hospital_departments = department_df[
             department_df["hospital_id"] == hospital_id
         ]
 
-        # Get department IDs
-        department_ids = hospital_departments[
-            "department_id"
-        ].tolist()
+        department_ids = (
+            hospital_departments[
+                "department_id"
+            ]
+            .tolist()
+        )
 
+        # --------------------------------
+        # Make sure there are enough doctors
+        # to give every department at least
+        # one doctor.
+        # --------------------------------
+
+        if doctors_per_hospital < len(
+            department_ids
+        ):
+
+            raise ValueError(
+                f"Hospital {hospital_id} has "
+                f"{len(department_ids)} departments "
+                f"but only "
+                f"{doctors_per_hospital} doctors "
+                f"were requested."
+            )
+
+        # --------------------------------
+        # First assign one doctor to every
+        # department.
+        # --------------------------------
+
+        assigned_departments = (
+            department_ids.copy()
+        )
+
+        # --------------------------------
+        # Assign remaining doctors randomly.
+        # --------------------------------
+
+        remaining_doctors = (
+            doctors_per_hospital
+            - len(department_ids)
+        )
+
+        assigned_departments.extend(
+            random.choices(
+                department_ids,
+                k=remaining_doctors
+            )
+        )
+
+        # --------------------------------
         # Generate doctors
-        for _ in range(doctors_per_hospital):
+        # --------------------------------
 
-            # Select a department belonging to this hospital
-            department_id = random.choice(department_ids)
+        for department_id in assigned_departments:
 
-            # Get department name
-            department_name = hospital_departments.loc[
-                hospital_departments["department_id"] == department_id,
-                "department_name"
-            ].iloc[0]
+            department_name = (
+                hospital_departments.loc[
+                    hospital_departments[
+                        "department_id"
+                    ] == department_id,
+                    "department_name"
+                ]
+                .iloc[0]
+            )
 
             doctor = {
                 "doctor_id": doctor_id,
@@ -60,8 +102,14 @@ def generate_doctors(
                 "hospital_id": hospital_id,
                 "department_id": department_id,
                 "specialization": department_name,
-                "experience_years": random.randint(2, 30),
-                "consultation_fee": random.randint(500, 2500),
+                "experience_years": random.randint(
+                    2,
+                    30
+                ),
+                "consultation_fee": random.randint(
+                    500,
+                    2500
+                ),
                 "joining_date": fake.date_between(
                     start_date="-10y",
                     end_date="today"
@@ -72,4 +120,11 @@ def generate_doctors(
 
             doctor_id += 1
 
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+
+    column_order = [
+        column["name"]
+        for column in schema["columns"]
+    ]
+
+    return df[column_order]
