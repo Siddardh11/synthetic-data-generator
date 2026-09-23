@@ -5,6 +5,7 @@ from generators.department_generator import generate_departments
 from generators.doctor_generator import generate_doctors
 from generators.patient_generator import generate_patients
 from generators.visit_generator import generate_visits
+from generators.admission_generator import generate_admissions
 
 
 # --------------------------------
@@ -84,6 +85,21 @@ visit_df = generate_visits(
     config
 )
 
+# --------------------------------
+# Admission
+# --------------------------------
+
+admission_schema_path = "schema/admission_schema.json"
+
+admission_df = generate_admissions(
+    admission_schema_path,
+    patient_df,
+    hospital_df,
+    department_df,
+    doctor_df,
+    config
+)
+
 
 # --------------------------------
 # Display generated data
@@ -120,6 +136,11 @@ visit_df.to_csv(
     index=False
 )
 
+admission_df.to_csv(
+    "output/admission.csv",
+    index=False
+)
+
 
 # --------------------------------
 # Summary
@@ -134,6 +155,7 @@ print(f"Departments : {len(department_df)}")
 print(f"Doctors     : {len(doctor_df)}")
 print(f"Patients    : {len(patient_df)}")
 print(f"Visits      : {len(visit_df)}")
+print(f"Admissions  : {len(admission_df)}")
 
 print("--------------------------------")
 print("All data generated successfully!")

@@ -1,0 +1,73 @@
+{
+    "table_name": "admission",
+
+    "columns": [
+        {
+            "name": "admission_id",
+            "type": "integer",
+            "primary_key": true
+        },
+        {
+            "name": "patient_id",
+            "type": "integer",
+            "foreign_key": "patient.patient_id"
+        },
+        {
+            "name": "hospital_id",
+            "type": "integer",
+            "foreign_key": "hospital.hospital_id"
+        },
+        {
+            "name": "department_id",
+            "type": "integer",
+            "foreign_key": "department.department_id"
+        },
+        {
+            "name": "doctor_id",
+            "type": "integer",
+            "foreign_key": "doctor.doctor_id"
+        },
+        {
+            "name": "admission_date",
+            "type": "date"
+        },
+        {
+            "name": "discharge_date",
+            "type": "date"
+        },
+        {
+            "name": "admission_type",
+            "type": "category",
+            "allowed_values": [
+                "Emergency",
+                "Planned"
+            ]
+        },
+        {
+            "name": "ward_type",
+            "type": "category",
+            "allowed_values": [
+                "General",
+                "Semi-Private",
+                "Private",
+                "ICU"
+            ]
+        },
+        {
+            "name": "diagnosis_category",
+            "type": "string"
+        },
+        {
+            "name": "length_of_stay",
+            "type": "integer"
+        },
+        {
+            "name": "admission_status",
+            "type": "category",
+            "allowed_values": [
+                "Discharged",
+                "Ongoing"
+            ]
+        }
+    ]
+}
