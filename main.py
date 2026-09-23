@@ -4,6 +4,7 @@ from generators.hospital_generator import generate_hospitals
 from generators.department_generator import generate_departments
 from generators.doctor_generator import generate_doctors
 from generators.patient_generator import generate_patients
+from generators.visit_generator import generate_visits
 
 
 # --------------------------------
@@ -69,6 +70,22 @@ patient_df = generate_patients(
 
 
 # --------------------------------
+# Patient Visit
+# --------------------------------
+
+visit_schema_path = "schema/visit_schema.json"
+
+visit_df = generate_visits(
+    visit_schema_path,
+    patient_df,
+    hospital_df,
+    department_df,
+    doctor_df,
+    config
+)
+
+
+# --------------------------------
 # Display generated data
 # --------------------------------
 
@@ -98,6 +115,11 @@ patient_df.to_csv(
     index=False
 )
 
+visit_df.to_csv(
+    "output/visit.csv",
+    index=False
+)
+
 
 # --------------------------------
 # Summary
@@ -111,6 +133,7 @@ print(f"Hospitals   : {len(hospital_df)}")
 print(f"Departments : {len(department_df)}")
 print(f"Doctors     : {len(doctor_df)}")
 print(f"Patients    : {len(patient_df)}")
+print(f"Visits      : {len(visit_df)}")
 
 print("--------------------------------")
 print("All data generated successfully!")

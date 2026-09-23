@@ -1,0 +1,65 @@
+{
+    "table_name": "patient_visit",
+
+    "columns": [
+        {
+            "name": "visit_id",
+            "type": "integer",
+            "primary_key": true
+        },
+        {
+            "name": "patient_id",
+            "type": "integer",
+            "foreign_key": "patient.patient_id"
+        },
+        {
+            "name": "hospital_id",
+            "type": "integer",
+            "foreign_key": "hospital.hospital_id"
+        },
+        {
+            "name": "department_id",
+            "type": "integer",
+            "foreign_key": "department.department_id"
+        },
+        {
+            "name": "doctor_id",
+            "type": "integer",
+            "foreign_key": "doctor.doctor_id"
+        },
+        {
+            "name": "visit_date",
+            "type": "date"
+        },
+        {
+            "name": "visit_type",
+            "type": "category",
+            "allowed_values": [
+                "OP",
+                "IP",
+                "Emergency"
+            ]
+        },
+        {
+            "name": "visit_status",
+            "type": "category",
+            "allowed_values": [
+                "Completed",
+                "Cancelled"
+            ]
+        },
+        {
+            "name": "consultation_fee",
+            "type": "float"
+        },
+        {
+            "name": "source",
+            "type": "category",
+            "allowed_values": [
+                "Walk-in",
+                "Appointment",
+                "Referral"
+            ]
+        }
+    ]
+}
