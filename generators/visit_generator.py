@@ -16,12 +16,12 @@ def generate_visits(
     config
 ):
     """
-    Generate patient visits while maintaining valid
-    patient, hospital, department and doctor relationships.
+    Generate synthetic patient visits while maintaining
+    valid patient, hospital, department and doctor relationships.
     """
 
     # --------------------------------
-    # Read schema
+    # Read visit schema
     # --------------------------------
 
     with open(
@@ -39,13 +39,32 @@ def generate_visits(
         "record_counts"
     ]["visits"]
 
-    # --------------------------------
-    # Prepare data
-    # --------------------------------
-
     data = []
 
     visit_id = 1
+
+    # --------------------------------
+    # Prepare patient records
+    # --------------------------------
+
+    patient_records = patient_df[
+        [
+            "patient_id",
+            "registration_date"
+        ]
+    ].to_dict("records")
+
+    # --------------------------------
+    # Prepare doctor records
+    # --------------------------------
+
+    doctor_records = doctor_df[
+        [
+            "doctor_id",
+            "hospital_id",
+            "department_id"
+        ]
+    ].to_dict("records")
 
     # --------------------------------
     # Generate visits
@@ -53,69 +72,86 @@ def generate_visits(
 
     for _ in range(number_of_visits):
 
+        # --------------------------------
         # Select a patient
-        patient_id = random.choice(
-            patient_df["patient_id"].tolist()
+        # --------------------------------
+
+        patient = random.choice(
+            patient_records
         )
 
-        # Select a hospital
-        hospital_id = random.choice(
-            hospital_df["hospital_id"].tolist()
-        )
+        patient_id = patient["patient_id"]
 
-        # Get departments belonging to this hospital
-        hospital_departments = department_df[
-            department_df["hospital_id"] == hospital_id
+        registration_date = patient[
+            "registration_date"
         ]
 
-        # Select a department
-        department_id = random.choice(
-            hospital_departments["department_id"].tolist()
+        # --------------------------------
+        # Select a doctor
+        # --------------------------------
+
+        doctor = random.choice(
+            doctor_records
         )
 
-        # Get doctors belonging to this hospital AND department
-        department_doctors = doctor_df[
-            (doctor_df["hospital_id"] == hospital_id)
-            &
-            (doctor_df["department_id"] == department_id)
-        ]
+        doctor_id = doctor["doctor_id"]
 
-        # Select a doctor from that department
-        doctor_id = random.choice(
-            department_doctors["doctor_id"].tolist()
+        hospital_id = doctor["hospital_id"]
+
+        department_id = doctor["department_id"]
+
+        # --------------------------------
+        # Generate visit date
+        # Visit cannot happen before
+        # patient registration
+        # --------------------------------
+
+        visit_date = fake.date_between(
+            start_date=registration_date,
+            end_date="today"
         )
 
+        # --------------------------------
         # Visit type
+        # --------------------------------
+
         visit_type = random.choice([
             "OP",
             "IP",
             "Emergency"
         ])
 
+        # --------------------------------
         # Visit status
+        # --------------------------------
+
         visit_status = random.choice([
             "Completed",
             "Cancelled"
         ])
 
+        # --------------------------------
         # Consultation fee
+        # --------------------------------
+
         consultation_fee = random.randint(
             500,
             2500
         )
 
+        # --------------------------------
         # Visit source
+        # --------------------------------
+
         source = random.choice([
             "Walk-in",
             "Appointment",
             "Referral"
         ])
 
-        # Visit date
-        visit_date = fake.date_between(
-            start_date="-5y",
-            end_date="today"
-        )
+        # --------------------------------
+        # Create visit record
+        # --------------------------------
 
         visit = {
             "visit_id": visit_id,
@@ -141,7 +177,7 @@ def generate_visits(
     df = pd.DataFrame(data)
 
     # --------------------------------
-    # Keep schema column order
+    # Keep schema-defined column order
     # --------------------------------
 
     column_order = [
