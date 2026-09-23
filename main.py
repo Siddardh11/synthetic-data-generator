@@ -6,6 +6,7 @@ from generators.doctor_generator import generate_doctors
 from generators.patient_generator import generate_patients
 from generators.visit_generator import generate_visits
 from generators.admission_generator import generate_admissions
+from generators.billing_generator import generate_billing
 
 
 # --------------------------------
@@ -100,6 +101,22 @@ admission_df = generate_admissions(
     config
 )
 
+# --------------------------------
+# Billing
+# --------------------------------
+
+billing_schema_path = "schema/billing_schema.json"
+
+billing_df = generate_billing(
+    billing_schema_path,
+    patient_df,
+    visit_df,
+    admission_df,
+    hospital_df,
+    department_df,
+    config
+)
+
 
 # --------------------------------
 # Display generated data
@@ -141,6 +158,10 @@ admission_df.to_csv(
     index=False
 )
 
+billing_df.to_csv(
+    "output/billing.csv",
+    index=False
+)
 
 # --------------------------------
 # Summary
@@ -156,6 +177,7 @@ print(f"Doctors     : {len(doctor_df)}")
 print(f"Patients    : {len(patient_df)}")
 print(f"Visits      : {len(visit_df)}")
 print(f"Admissions  : {len(admission_df)}")
+print(f"Billing     : {len(billing_df)}")
 
 print("--------------------------------")
 print("All data generated successfully!")

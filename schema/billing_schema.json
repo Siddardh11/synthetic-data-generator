@@ -1,0 +1,83 @@
+{
+    "table_name": "billing",
+
+    "columns": [
+        {
+            "name": "bill_id",
+            "type": "integer",
+            "primary_key": true
+        },
+        {
+            "name": "patient_id",
+            "type": "integer",
+            "foreign_key": "patient.patient_id"
+        },
+        {
+            "name": "visit_id",
+            "type": "integer",
+            "foreign_key": "patient_visit.visit_id",
+            "nullable": true
+        },
+        {
+            "name": "admission_id",
+            "type": "integer",
+            "foreign_key": "admission.admission_id",
+            "nullable": true
+        },
+        {
+            "name": "hospital_id",
+            "type": "integer",
+            "foreign_key": "hospital.hospital_id"
+        },
+        {
+            "name": "department_id",
+            "type": "integer",
+            "foreign_key": "department.department_id"
+        },
+        {
+            "name": "bill_date",
+            "type": "date"
+        },
+        {
+            "name": "bill_category",
+            "type": "category",
+            "allowed_values": [
+                "Consultation",
+                "Procedure",
+                "Room",
+                "Pharmacy",
+                "Diagnostic",
+                "Surgery"
+            ]
+        },
+        {
+            "name": "gross_amount",
+            "type": "float"
+        },
+        {
+            "name": "discount_amount",
+            "type": "float"
+        },
+        {
+            "name": "insurance_amount",
+            "type": "float"
+        },
+        {
+            "name": "patient_amount",
+            "type": "float"
+        },
+        {
+            "name": "total_amount",
+            "type": "float"
+        },
+        {
+            "name": "payment_status",
+            "type": "category",
+            "allowed_values": [
+                "Paid",
+                "Pending",
+                "Partial"
+            ]
+        }
+    ]
+}
