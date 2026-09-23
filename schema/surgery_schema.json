@@ -1,0 +1,64 @@
+{
+    "table_name": "surgery",
+
+    "columns": [
+        {
+            "name": "procedure_id",
+            "type": "integer",
+            "primary_key": true
+        },
+        {
+            "name": "patient_id",
+            "type": "integer",
+            "foreign_key": "patient.patient_id"
+        },
+        {
+            "name": "admission_id",
+            "type": "integer",
+            "foreign_key": "admission.admission_id"
+        },
+        {
+            "name": "hospital_id",
+            "type": "integer",
+            "foreign_key": "hospital.hospital_id"
+        },
+        {
+            "name": "department_id",
+            "type": "integer",
+            "foreign_key": "department.department_id"
+        },
+        {
+            "name": "doctor_id",
+            "type": "integer",
+            "foreign_key": "doctor.doctor_id"
+        },
+        {
+            "name": "procedure_date",
+            "type": "date"
+        },
+        {
+            "name": "procedure_name",
+            "type": "string"
+        },
+        {
+            "name": "procedure_category",
+            "type": "category",
+            "allowed_values": [
+                "Surgery",
+                "Procedure"
+            ]
+        },
+        {
+            "name": "procedure_status",
+            "type": "category",
+            "allowed_values": [
+                "Completed",
+                "Cancelled"
+            ]
+        },
+        {
+            "name": "cost",
+            "type": "float"
+        }
+    ]
+}

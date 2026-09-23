@@ -8,10 +8,12 @@ from generators.visit_generator import generate_visits
 from generators.admission_generator import generate_admissions
 from generators.billing_generator import generate_billing
 from generators.diagnostic_generator import generate_diagnostics
+from generators.surgery_generator import generate_surgeries
 
-# --------------------------------
+
+# ========================================
 # Load configuration
-# --------------------------------
+# ========================================
 
 with open(
     "config/config.json",
@@ -21,22 +23,26 @@ with open(
     config = json.load(file)
 
 
-# --------------------------------
+# ========================================
 # Hospital
-# --------------------------------
+# ========================================
 
-hospital_schema_path = "schema/hospital_schema.json"
+hospital_schema_path = (
+    "schema/hospital_schema.json"
+)
 
 hospital_df = generate_hospitals(
     hospital_schema_path
 )
 
 
-# --------------------------------
+# ========================================
 # Department
-# --------------------------------
+# ========================================
 
-department_schema_path = "schema/department_schema.json"
+department_schema_path = (
+    "schema/department_schema.json"
+)
 
 department_df = generate_departments(
     department_schema_path,
@@ -45,11 +51,13 @@ department_df = generate_departments(
 )
 
 
-# --------------------------------
+# ========================================
 # Doctor
-# --------------------------------
+# ========================================
 
-doctor_schema_path = "schema/doctor_schema.json"
+doctor_schema_path = (
+    "schema/doctor_schema.json"
+)
 
 doctor_df = generate_doctors(
     doctor_schema_path,
@@ -59,11 +67,13 @@ doctor_df = generate_doctors(
 )
 
 
-# --------------------------------
+# ========================================
 # Patient
-# --------------------------------
+# ========================================
 
-patient_schema_path = "schema/patient_schema.json"
+patient_schema_path = (
+    "schema/patient_schema.json"
+)
 
 patient_df = generate_patients(
     patient_schema_path,
@@ -71,11 +81,13 @@ patient_df = generate_patients(
 )
 
 
-# --------------------------------
-# Patient Visit
-# --------------------------------
+# ========================================
+# Visit
+# ========================================
 
-visit_schema_path = "schema/visit_schema.json"
+visit_schema_path = (
+    "schema/visit_schema.json"
+)
 
 visit_df = generate_visits(
     visit_schema_path,
@@ -86,11 +98,14 @@ visit_df = generate_visits(
     config
 )
 
-# --------------------------------
-# Admission
-# --------------------------------
 
-admission_schema_path = "schema/admission_schema.json"
+# ========================================
+# Admission
+# ========================================
+
+admission_schema_path = (
+    "schema/admission_schema.json"
+)
 
 admission_df = generate_admissions(
     admission_schema_path,
@@ -101,11 +116,14 @@ admission_df = generate_admissions(
     config
 )
 
-# --------------------------------
-# Billing
-# --------------------------------
 
-billing_schema_path = "schema/billing_schema.json"
+# ========================================
+# Billing
+# ========================================
+
+billing_schema_path = (
+    "schema/billing_schema.json"
+)
 
 billing_df = generate_billing(
     billing_schema_path,
@@ -117,11 +135,14 @@ billing_df = generate_billing(
     config
 )
 
-# --------------------------------
-# Diagnostic Test
-# --------------------------------
 
-diagnostic_schema_path = "schema/diagnostic_schema.json"
+# ========================================
+# Diagnostic Test
+# ========================================
+
+diagnostic_schema_path = (
+    "schema/diagnostic_schema.json"
+)
 
 diagnostic_df = generate_diagnostics(
     diagnostic_schema_path,
@@ -130,15 +151,24 @@ diagnostic_df = generate_diagnostics(
 )
 
 
-# --------------------------------
-# Display generated data
-# --------------------------------
+# ========================================
+# Surgery / Procedure
+# ========================================
+
+surgery_schema_path = (
+    "schema/surgery_schema.json"
+)
+
+surgery_df = generate_surgeries(
+    surgery_schema_path,
+    admission_df,
+    config
+)
 
 
-
-# --------------------------------
-# Save output
-# --------------------------------
+# ========================================
+# Save output files
+# ========================================
 
 hospital_df.to_csv(
     "output/hospital.csv",
@@ -179,9 +209,16 @@ diagnostic_df.to_csv(
     "output/diagnostic_test.csv",
     index=False
 )
-# --------------------------------
+
+surgery_df.to_csv(
+    "output/surgery.csv",
+    index=False
+)
+
+
+# ========================================
 # Summary
-# --------------------------------
+# ========================================
 
 print("\n--------------------------------")
 print("DATA GENERATION SUMMARY")
@@ -195,6 +232,7 @@ print(f"Visits      : {len(visit_df)}")
 print(f"Admissions  : {len(admission_df)}")
 print(f"Billing     : {len(billing_df)}")
 print(f"Diagnostics : {len(diagnostic_df)}")
+print(f"Surgeries   : {len(surgery_df)}")
 
 print("--------------------------------")
 print("All data generated successfully!")
