@@ -7,7 +7,7 @@ from generators.patient_generator import generate_patients
 from generators.visit_generator import generate_visits
 from generators.admission_generator import generate_admissions
 from generators.billing_generator import generate_billing
-
+from generators.diagnostic_generator import generate_diagnostics
 
 # --------------------------------
 # Load configuration
@@ -117,6 +117,18 @@ billing_df = generate_billing(
     config
 )
 
+# --------------------------------
+# Diagnostic Test
+# --------------------------------
+
+diagnostic_schema_path = "schema/diagnostic_schema.json"
+
+diagnostic_df = generate_diagnostics(
+    diagnostic_schema_path,
+    visit_df,
+    config
+)
+
 
 # --------------------------------
 # Display generated data
@@ -163,6 +175,10 @@ billing_df.to_csv(
     index=False
 )
 
+diagnostic_df.to_csv(
+    "output/diagnostic_test.csv",
+    index=False
+)
 # --------------------------------
 # Summary
 # --------------------------------
@@ -178,6 +194,7 @@ print(f"Patients    : {len(patient_df)}")
 print(f"Visits      : {len(visit_df)}")
 print(f"Admissions  : {len(admission_df)}")
 print(f"Billing     : {len(billing_df)}")
+print(f"Diagnostics : {len(diagnostic_df)}")
 
 print("--------------------------------")
 print("All data generated successfully!")

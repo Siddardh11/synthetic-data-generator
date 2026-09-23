@@ -1,0 +1,77 @@
+{
+    "table_name": "diagnostic_test",
+
+    "columns": [
+        {
+            "name": "diagnostic_id",
+            "type": "integer",
+            "primary_key": true
+        },
+        {
+            "name": "patient_id",
+            "type": "integer",
+            "foreign_key": "patient.patient_id"
+        },
+        {
+            "name": "visit_id",
+            "type": "integer",
+            "foreign_key": "patient_visit.visit_id"
+        },
+        {
+            "name": "hospital_id",
+            "type": "integer",
+            "foreign_key": "hospital.hospital_id"
+        },
+        {
+            "name": "department_id",
+            "type": "integer",
+            "foreign_key": "department.department_id"
+        },
+        {
+            "name": "doctor_id",
+            "type": "integer",
+            "foreign_key": "doctor.doctor_id"
+        },
+        {
+            "name": "test_date",
+            "type": "date"
+        },
+        {
+            "name": "test_name",
+            "type": "category",
+            "allowed_values": [
+                "CBC",
+                "Blood Sugar",
+                "Lipid Profile",
+                "ECG",
+                "X-Ray",
+                "CT Scan",
+                "MRI",
+                "Ultrasound",
+                "Kidney Function Test",
+                "Liver Function Test"
+            ]
+        },
+        {
+            "name": "test_category",
+            "type": "category",
+            "allowed_values": [
+                "Pathology",
+                "Radiology",
+                "Cardiology"
+            ]
+        },
+        {
+            "name": "test_status",
+            "type": "category",
+            "allowed_values": [
+                "Completed",
+                "Pending"
+            ]
+        },
+        {
+            "name": "amount",
+            "type": "float"
+        }
+    ]
+}
