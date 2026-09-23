@@ -1,0 +1,38 @@
+{
+    "table_name": "department",
+
+    "columns": [
+        {
+            "name": "department_id",
+            "type": "integer",
+            "primary_key": true
+        },
+        {
+            "name": "department_name",
+            "type": "string"
+        },
+        {
+            "name": "hospital_id",
+            "type": "integer",
+            "foreign_key": "hospital.hospital_id"
+        }
+    ],
+
+    "departments": [
+        "Cardiology",
+        "Oncology",
+        "Neurology",
+        "Orthopedics",
+        "Nephrology",
+        "Gastroenterology",
+        "Pediatrics",
+        "General Medicine",
+        "General Surgery",
+        "Obstetrics & Gynaecology",
+        "Emergency & Critical Care",
+        "ENT",
+        "Dermatology",
+        "Pulmonology",
+        "Urology"
+    ]
+}

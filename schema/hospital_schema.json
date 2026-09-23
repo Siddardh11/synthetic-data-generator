@@ -1,0 +1,72 @@
+{
+    "table_name": "hospital",
+
+    "columns": [
+        {
+            "name": "hospital_id",
+            "type": "integer",
+            "primary_key": true
+        },
+        {
+            "name": "hospital_name",
+            "type": "string"
+        },
+        {
+            "name": "city",
+            "type": "string"
+        },
+        {
+            "name": "state",
+            "type": "string"
+        },
+        {
+            "name": "hospital_type",
+            "type": "category",
+            "allowed_values": [
+                "Multi-Specialty",
+                "Multi-Specialty",
+                "Multi-Specialty",
+                "Multi-Specialty"
+            ]
+        },
+        {
+            "name": "bed_capacity",
+            "type": "integer"
+        }
+    ],
+
+    "records": [
+        {
+            "hospital_id": 1,
+            "hospital_name": "Kamineni LB Nagar",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "hospital_type": "Multi-Specialty",
+            "bed_capacity": 500
+        },
+        {
+            "hospital_id": 2,
+            "hospital_name": "Kamineni King Koti",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "hospital_type": "Multi-Specialty",
+            "bed_capacity": 300
+        },
+        {
+            "hospital_id": 3,
+            "hospital_name": "Kamineni Narketpally",
+            "city": "Narketpally",
+            "state": "Telangana",
+            "hospital_type": "Multi-Specialty",
+            "bed_capacity": 250
+        },
+        {
+            "hospital_id": 4,
+            "hospital_name": "Kamineni Vijayawada",
+            "city": "Vijayawada",
+            "state": "Andhra Pradesh",
+            "hospital_type": "Multi-Specialty",
+            "bed_capacity": 350
+        }
+    ]
+}
