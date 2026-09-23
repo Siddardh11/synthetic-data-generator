@@ -1,22 +1,15 @@
-from faker import Faker
-import pandas as pd
+from generator import generate_customers
 
-fake = Faker()
+# Number of customers to generate
+num_rows = 100
 
-data = []
+# Generate customer data
+df = generate_customers(num_rows)
 
-for i in range(10):
-    customer = {
-        "customer_id": i + 1,
-        "name": fake.name(),
-        "email": fake.email(),
-        "city": fake.city(),
-        "age": fake.random_int(min=18, max=60)
-    }
+# Display generated data
+print(df)
 
-    data.append(customer)
-
-df = pd.DataFrame(data)
+# Export to Excel
 df.to_excel("customers.xlsx", index=False)
 
-print(df)
+print("Excel file generated successfully!")
