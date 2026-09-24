@@ -47,15 +47,9 @@ expected_files = {
 expected_counts = {
     "hospital": config["record_counts"]["hospitals"],
 
-    "department": (
-        config["record_counts"]["hospitals"]
-        * config["record_counts"]["departments_per_hospital"]
-    ),
+    "department": config["record_counts"]["departments"],
 
-    "doctor": (
-        config["record_counts"]["hospitals"]
-        * config["record_counts"]["doctors_per_hospital"]
-    ),
+    "doctor": config["record_counts"]["doctors"],
 
     "patient": config["record_counts"]["patients"],
 
@@ -572,46 +566,39 @@ relationship_failures += doctor_failures
 
 visit_failures = 0
 
-for _, row in tables["visit"].iterrows():
+doctor_lookup = (
+    tables["doctor"]
+    .set_index("doctor_id")[["hospital_id", "department_id"]]
+    .to_dict("index")
+)
 
-    visit_id = row["visit_id"]
+for row in tables["visit"].itertuples(index=False):
 
-    doctor_id = row["doctor_id"]
+    doctor = doctor_lookup.get(row.doctor_id)
 
-    hospital_id = row["hospital_id"]
-
-    department_id = row["department_id"]
-
-    doctor = tables["doctor"][
-        tables["doctor"]["doctor_id"] == doctor_id
-    ]
-
-    if doctor.empty:
-
+    if doctor is None:
         continue
 
-    doctor = doctor.iloc[0]
-
-    if doctor["hospital_id"] != hospital_id:
+    if doctor["hospital_id"] != row.hospital_id:
 
         visit_failures += 1
 
         print(
-            f"✗ Visit {visit_id}: "
-            f"doctor {doctor_id} belongs to "
+            f"✗ Visit {row.visit_id}: "
+            f"doctor {row.doctor_id} belongs to "
             f"hospital {doctor['hospital_id']}, "
-            f"not {hospital_id}"
+            f"not {row.hospital_id}"
         )
 
-    if doctor["department_id"] != department_id:
+    if doctor["department_id"] != row.department_id:
 
         visit_failures += 1
 
         print(
-            f"✗ Visit {visit_id}: "
-            f"doctor {doctor_id} belongs to "
+            f"✗ Visit {row.visit_id}: "
+            f"doctor {row.doctor_id} belongs to "
             f"department {doctor['department_id']}, "
-            f"not {department_id}"
+            f"not {row.department_id}"
         )
 
 
@@ -661,41 +648,28 @@ relationship_failures += visit_patient_failures
 
 admission_failures = 0
 
-for _, row in tables["admission"].iterrows():
+for row in tables["admission"].itertuples(index=False):
 
-    admission_id = row["admission_id"]
+    doctor = doctor_lookup.get(row.doctor_id)
 
-    doctor_id = row["doctor_id"]
-
-    hospital_id = row["hospital_id"]
-
-    department_id = row["department_id"]
-
-    doctor = tables["doctor"][
-        tables["doctor"]["doctor_id"] == doctor_id
-    ]
-
-    if doctor.empty:
-
+    if doctor is None:
         continue
 
-    doctor = doctor.iloc[0]
-
-    if doctor["hospital_id"] != hospital_id:
+    if doctor["hospital_id"] != row.hospital_id:
 
         admission_failures += 1
 
         print(
-            f"✗ Admission {admission_id}: "
+            f"✗ Admission {row.admission_id}: "
             f"doctor/hospital mismatch"
         )
 
-    if doctor["department_id"] != department_id:
+    if doctor["department_id"] != row.department_id:
 
         admission_failures += 1
 
         print(
-            f"✗ Admission {admission_id}: "
+            f"✗ Admission {row.admission_id}: "
             f"doctor/department mismatch"
         )
 
@@ -945,7 +919,7 @@ for _, row in tables["billing"].iterrows():
     if pd.notna(row["visit_id"]):
 
         visit = visit_lookup.get(
-            int(row["visit_id"])
+            row["visit_id"]
         )
 
         if visit is None:
@@ -986,7 +960,7 @@ for _, row in tables["billing"].iterrows():
     if pd.notna(row["admission_id"]):
 
         admission = admission_lookup.get(
-            int(row["admission_id"])
+            row["admission_id"]
         )
 
         if admission is None:
@@ -2883,6 +2857,9 @@ quality_failures += patient_age_failures
 # ========================================
 # Doctor Specialization Validation
 # ========================================
+# ========================================
+# Doctor Specialization Validation
+# ========================================
 
 doctor_specialization_failures = 0
 
@@ -2894,6 +2871,26 @@ department_lookup = (
     ["department_name"]
     .to_dict()
 )
+
+# Department → Specialization mapping
+specialization_map = {
+    "General Medicine": "General Physician",
+    "Emergency & Critical Care": "Emergency Medicine",
+    "Pediatrics": "Pediatrician",
+    "Cardiology": "Cardiologist",
+    "Orthopedics": "Orthopedic Specialist",
+    "Obstetrics & Gynaecology":
+        "Obstetrician & Gynaecologist",
+    "Pulmonology": "Pulmonologist",
+    "Gastroenterology": "Gastroenterologist",
+    "Neurology": "Neurologist",
+    "Nephrology": "Nephrologist",
+    "Urology": "Urologist",
+    "General Surgery": "General Surgeon",
+    "Oncology": "Oncologist",
+    "ENT": "ENT Specialist",
+    "Dermatology": "Dermatologist"
+}
 
 doctors = tables["doctor"]
 
@@ -2907,9 +2904,13 @@ for _, row in doctors.iterrows():
         "specialization"
     ]
 
+    department_name = department_lookup.get(
+        department_id
+    )
+
     expected_specialization = (
-        department_lookup.get(
-            department_id
+        specialization_map.get(
+            department_name
         )
     )
 

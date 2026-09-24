@@ -1,18 +1,81 @@
 {
     "record_counts": {
-        "hospitals": 4,
-        "departments_per_hospital": 15,
-        "doctors_per_hospital": 20,
-        "patients": 2500,
-        "visits": 7500,
-        "admissions": 1250,
-        "diagnostic_tests": 5000,
-        "procedures": 750,
-        "billing_records": 7500
+    "hospitals": 4,
+    "departments": 60,
+    "doctors": 125,
+    "patients": 25000,
+    "visits": 150000,
+    "admissions": 25000,
+    "diagnostic_tests": 100000,
+    "procedures": 15000,
+    "billing_records": 150000
     },
 
     "date_range": {
         "start_date": "2024-10-01",
         "end_date": "2026-09-23"
+    },
+
+    "variation": {
+        "hospital_activity_weights": {
+            "Kamineni LB Nagar": 1.30,
+            "Kamineni King Koti": 1.00,
+            "Kamineni Narketpally": 0.80,
+            "Kamineni Vijayawada": 1.10
+        },
+
+        "department_activity_weights": {
+            "General Medicine": 1.30,
+            "Emergency & Critical Care": 1.20,
+            "Pediatrics": 1.10,
+            "Cardiology": 1.05,
+            "Orthopedics": 1.00,
+            "Obstetrics & Gynaecology": 1.00,
+            "Pulmonology": 0.90,
+            "Gastroenterology": 0.90,
+            "Neurology": 0.85,
+            "Nephrology": 0.80,
+            "Urology": 0.80,
+            "General Surgery": 0.80,
+            "Oncology": 0.75,
+            "ENT": 0.70,
+            "Dermatology": 0.65
+        },
+
+        "doctor_workload" :{
+            "high": 1.30,
+            "medium": 1.00,
+            "low": 0.70,
+            "distribution": {
+                "high": 0.20,
+                "medium": 0.60,
+                "low": 0.20
+            }
+        },
+
+        "monthly_activity_weights": {
+            "1": 1.00,
+            "2": 0.95,
+            "3": 1.05,
+            "4": 1.10,
+            "5": 1.15,
+            "6": 0.95,
+            "7": 1.05,
+            "8": 1.10,
+            "9": 1.00,
+            "10": 1.08,
+            "11": 0.98,
+            "12": 0.92
+        },
+
+        "day_of_week_activity_weights": {
+        "Monday": 1.10,
+        "Tuesday": 1.08,
+        "Wednesday": 1.05,
+        "Thursday": 1.03,
+        "Friday": 1.00,
+        "Saturday": 0.75,
+        "Sunday": 0.65
+        }
     }
 }

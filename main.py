@@ -1,5 +1,7 @@
 import json
 
+from utils.id_generator import reset_ids
+
 from generators.hospital_generator import generate_hospitals
 from generators.department_generator import generate_departments
 from generators.doctor_generator import generate_doctors
@@ -21,6 +23,13 @@ with open(
     encoding="utf-8"
 ) as file:
     config = json.load(file)
+
+
+# ========================================
+# Reset centralized ID registry
+# ========================================
+
+reset_ids()
 
 
 # ========================================

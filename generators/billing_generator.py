@@ -1,7 +1,10 @@
 import json
+import random
+
 import pandas as pd
 from faker import Faker
-import random
+
+from utils.id_generator import generate_id
 
 
 fake = Faker()
@@ -22,6 +25,7 @@ def generate_billing(
     Generate synthetic billing records using existing clinical activity.
 
     Billing is event-driven:
+
     - Consultation -> visit
     - Diagnostic   -> completed diagnostic activity
     - Pharmacy     -> visit or admission
@@ -29,30 +33,16 @@ def generate_billing(
     - Procedure    -> completed procedure activity
     - Surgery      -> completed surgery activity
 
-    Clinical-cost correlations:
-    - ICU admissions have the highest room daily rates.
-    - Private wards cost more than Semi-Private and General.
-    - Longer stays produce higher room charges.
-    - Inpatient pharmacy cost increases with ward level and LOS.
-    - Surgery/procedure bills are derived from actual procedure costs.
-    - Diagnostic bills are derived from actual diagnostic amounts.
-
-    Event-billing rules:
-    - A completed procedure can generate at most one Procedure bill.
-    - A completed surgery can generate at most one Surgery bill.
-    - A completed diagnostic test can generate at most one Diagnostic bill.
-    - Cancelled clinical events do not generate their corresponding bill.
-    - The remaining billing records are filled with normal consultation,
-      room, and pharmacy activity.
-
     Financial rules:
+
     total_amount = gross_amount - discount_amount
+
     insurance_amount + patient_amount = total_amount
     """
 
-    # --------------------------------
+    # ========================================
     # Read billing schema
-    # --------------------------------
+    # ========================================
 
     with open(
         schema_path,
@@ -61,31 +51,53 @@ def generate_billing(
     ) as file:
         schema = json.load(file)
 
-    # --------------------------------
-    # Number of billing records
-    # --------------------------------
+    # ========================================
+    # Number of bills
+    # ========================================
 
     number_of_bills = config[
         "record_counts"
     ]["billing_records"]
 
-    # --------------------------------
+    # ========================================
     # Historical range
-    # --------------------------------
-
-    date_range = config["date_range"]
+    # ========================================
 
     historical_start = pd.to_datetime(
-        date_range["start_date"]
+        config["date_range"]["start_date"]
     ).date()
 
     historical_end = pd.to_datetime(
-        date_range["end_date"]
+        config["date_range"]["end_date"]
     ).date()
 
-    # --------------------------------
+    effective_end = min(
+        historical_end,
+        pd.Timestamp.today().date()
+    )
+
+    # ========================================
+    # Validate source DataFrames
+    # ========================================
+
+    if patient_df.empty:
+        raise ValueError(
+            "Patient DataFrame is empty."
+        )
+
+    if visit_df.empty:
+        raise ValueError(
+            "Visit DataFrame is empty."
+        )
+
+    if admission_df.empty:
+        raise ValueError(
+            "Admission DataFrame is empty."
+        )
+
+    # ========================================
     # Patient records
-    # --------------------------------
+    # ========================================
 
     patient_records = patient_df[
         [
@@ -100,9 +112,9 @@ def generate_billing(
         for row in patient_records
     }
 
-    # --------------------------------
+    # ========================================
     # Visit records
-    # --------------------------------
+    # ========================================
 
     visit_records = visit_df[
         [
@@ -114,9 +126,9 @@ def generate_billing(
         ]
     ].to_dict("records")
 
-    # --------------------------------
+    # ========================================
     # Admission records
-    # --------------------------------
+    # ========================================
 
     admission_records = admission_df[
         [
@@ -132,9 +144,9 @@ def generate_billing(
         ]
     ].to_dict("records")
 
-    # --------------------------------
+    # ========================================
     # Diagnostic records
-    # --------------------------------
+    # ========================================
 
     diagnostic_records = diagnostic_df[
         [
@@ -150,9 +162,9 @@ def generate_billing(
         ]
     ].to_dict("records")
 
-    # --------------------------------
+    # ========================================
     # Surgery / procedure records
-    # --------------------------------
+    # ========================================
 
     surgery_records = surgery_df[
         [
@@ -168,101 +180,111 @@ def generate_billing(
         ]
     ].to_dict("records")
 
-    # --------------------------------
-    # Build clinical activity lookups
-    # --------------------------------
-
-    diagnostics_by_visit = {}
-
-    for diagnostic in diagnostic_records:
-        diagnostics_by_visit.setdefault(
-            diagnostic["visit_id"],
-            []
-        ).append(diagnostic)
-
-    procedures_by_admission = {}
-
-    for procedure in surgery_records:
-        procedures_by_admission.setdefault(
-            procedure["admission_id"],
-            []
-        ).append(procedure)
-
-    # --------------------------------
-    # Only completed clinical events
-    # are eligible for corresponding
-    # billing.
-    # --------------------------------
+    # ========================================
+    # Clinical event pools
+    # ========================================
 
     completed_diagnostics = [
         diagnostic
         for diagnostic in diagnostic_records
-        if str(diagnostic["test_status"]).strip().lower()
-        in {"completed", "complete", "done"}
+        if str(
+            diagnostic["test_status"]
+        ).strip().lower()
+        in {
+            "completed",
+            "complete",
+            "done"
+        }
     ]
-
-    # If the source data uses a different status vocabulary,
-    # retain records that are not explicitly cancelled.
-    if not completed_diagnostics:
-        completed_diagnostics = [
-            diagnostic
-            for diagnostic in diagnostic_records
-            if str(diagnostic["test_status"]).strip().lower()
-            not in {"cancelled", "canceled"}
-        ]
 
     completed_procedures = [
         procedure
         for procedure in surgery_records
-        if str(procedure["procedure_status"]).strip().lower()
-        in {"completed", "complete", "done"}
+        if str(
+            procedure["procedure_status"]
+        ).strip().lower()
+        in {
+            "completed",
+            "complete",
+            "done"
+        }
     ]
-
-    if not completed_procedures:
-        completed_procedures = [
-            procedure
-            for procedure in surgery_records
-            if str(procedure["procedure_status"]).strip().lower()
-            not in {"cancelled", "canceled"}
-        ]
 
     completed_procedure_events = [
         procedure
         for procedure in completed_procedures
-        if procedure["procedure_category"] == "Procedure"
+        if procedure["procedure_category"]
+        == "Procedure"
     ]
 
     completed_surgery_events = [
         procedure
         for procedure in completed_procedures
-        if procedure["procedure_category"] == "Surgery"
+        if procedure["procedure_category"]
+        == "Surgery"
     ]
 
-    # --------------------------------
-    # Build unused event pools.
-    #
-    # Each clinical event can produce
-    # at most one corresponding bill.
-    # --------------------------------
+    # ========================================
+    # Event selection helpers
+    # ========================================
 
-    unused_diagnostic_ids = {
-        diagnostic["diagnostic_id"]
-        for diagnostic in completed_diagnostics
-    }
+    def choose_unused_diagnostic():
 
-    unused_procedure_ids = {
-        procedure["procedure_id"]
-        for procedure in completed_procedure_events
-    }
+        if not completed_diagnostics:
+            return None
 
-    unused_surgery_ids = {
-        procedure["procedure_id"]
-        for procedure in completed_surgery_events
-    }
+        index = random.randrange(
+            len(completed_diagnostics)
+        )
 
-    # --------------------------------
-    # Room daily rates
-    # --------------------------------
+        completed_diagnostics[
+            index
+        ], completed_diagnostics[-1] = (
+            completed_diagnostics[-1],
+            completed_diagnostics[index]
+        )
+
+        return completed_diagnostics.pop()
+
+    def choose_unused_procedure():
+
+        if not completed_procedure_events:
+            return None
+
+        index = random.randrange(
+            len(completed_procedure_events)
+        )
+
+        completed_procedure_events[
+            index
+        ], completed_procedure_events[-1] = (
+            completed_procedure_events[-1],
+            completed_procedure_events[index]
+        )
+
+        return completed_procedure_events.pop()
+
+    def choose_unused_surgery():
+
+        if not completed_surgery_events:
+            return None
+
+        index = random.randrange(
+            len(completed_surgery_events)
+        )
+
+        completed_surgery_events[
+            index
+        ], completed_surgery_events[-1] = (
+            completed_surgery_events[-1],
+            completed_surgery_events[index]
+        )
+
+        return completed_surgery_events.pop()
+
+    # ========================================
+    # Room rates
+    # ========================================
 
     room_daily_rates = {
         "General": (1800, 3000),
@@ -271,151 +293,30 @@ def generate_billing(
         "ICU": (10000, 18000)
     }
 
-    # --------------------------------
-    # Helper functions
-    # --------------------------------
-
-    def choose_unused_event(events, unused_ids):
-        """
-        Select one unused clinical event.
-
-        Returns None when all events in the
-        pool have already received a bill.
-        """
-        if not unused_ids:
-            return None
-
-        candidates = [
-            event
-            for event in events
-            if event["procedure_id"]
-            if "procedure_id" in event
-        ]
-
-        # Diagnostic events use diagnostic_id.
-        if events and "diagnostic_id" in events[0]:
-            candidates = [
-                event
-                for event in events
-                if event["diagnostic_id"] in unused_ids
-            ]
-
-            if not candidates:
-                return None
-
-            event = random.choice(candidates)
-            unused_ids.remove(event["diagnostic_id"])
-            return event
-
-        candidates = [
-            event
-            for event in events
-            if event["procedure_id"] in unused_ids
-        ]
-
-        if not candidates:
-            return None
-
-        event = random.choice(candidates)
-        unused_ids.remove(event["procedure_id"])
-        return event
-
-    def choose_unused_diagnostic():
-        if not unused_diagnostic_ids:
-            return None
-
-        candidates = [
-            diagnostic
-            for diagnostic in completed_diagnostics
-            if diagnostic["diagnostic_id"] in unused_diagnostic_ids
-        ]
-
-        if not candidates:
-            return None
-
-        diagnostic = random.choice(candidates)
-
-        unused_diagnostic_ids.remove(
-            diagnostic["diagnostic_id"]
-        )
-
-        return diagnostic
-
-    def choose_unused_procedure():
-        if not unused_procedure_ids:
-            return None
-
-        candidates = [
-            procedure
-            for procedure in completed_procedure_events
-            if procedure["procedure_id"] in unused_procedure_ids
-        ]
-
-        if not candidates:
-            return None
-
-        procedure = random.choice(candidates)
-
-        unused_procedure_ids.remove(
-            procedure["procedure_id"]
-        )
-
-        return procedure
-
-    def choose_unused_surgery():
-        if not unused_surgery_ids:
-            return None
-
-        candidates = [
-            procedure
-            for procedure in completed_surgery_events
-            if procedure["procedure_id"] in unused_surgery_ids
-        ]
-
-        if not candidates:
-            return None
-
-        procedure = random.choice(candidates)
-
-        unused_surgery_ids.remove(
-            procedure["procedure_id"]
-        )
-
-        return procedure
-
-    # --------------------------------
-    # Generate billing records
-    # --------------------------------
+    # ========================================
+    # Generate bills
+    # ========================================
 
     data = []
 
-    bill_id = 1
-
     while len(data) < number_of_bills:
-
-        # --------------------------------
-        # Determine available event-driven
-        # categories.
-        # --------------------------------
 
         available_event_categories = []
 
-        if unused_procedure_ids:
-            available_event_categories.append("Procedure")
+        if completed_procedure_events:
+            available_event_categories.append(
+                "Procedure"
+            )
 
-        if unused_surgery_ids:
-            available_event_categories.append("Surgery")
+        if completed_surgery_events:
+            available_event_categories.append(
+                "Surgery"
+            )
 
-        if unused_diagnostic_ids:
-            available_event_categories.append("Diagnostic")
-
-        # --------------------------------
-        # Normal billing categories.
-        #
-        # Event-driven categories are given
-        # moderate weights but can never
-        # exceed the number of actual events.
-        # --------------------------------
+        if completed_diagnostics:
+            available_event_categories.append(
+                "Diagnostic"
+            )
 
         normal_categories = [
             "Consultation",
@@ -423,12 +324,17 @@ def generate_billing(
             "Pharmacy"
         ]
 
-        category_pool = normal_categories + available_event_categories
+        category_pool = (
+            normal_categories
+            + available_event_categories
+        )
+
+        # ------------------------------------
+        # Billing category weights
+        # ------------------------------------
 
         if available_event_categories:
-            # Clinical event categories receive
-            # enough probability to be used naturally,
-            # but their pools impose a hard upper bound.
+
             weights = []
 
             for category in category_pool:
@@ -454,9 +360,9 @@ def generate_billing(
         else:
 
             weights = [
-                0.50,  # Consultation
-                0.25,  # Room
-                0.25   # Pharmacy
+                0.50,
+                0.25,
+                0.25
             ]
 
         bill_category = random.choices(
@@ -465,9 +371,17 @@ def generate_billing(
             k=1
         )[0]
 
-        # --------------------------------
+        # ====================================
+        # Common variables
+        # ====================================
+
+        visit_id = None
+        admission_id = None
+        gross_amount = 0.0
+
+        # ====================================
         # Consultation
-        # --------------------------------
+        # ====================================
 
         if bill_category == "Consultation":
 
@@ -476,7 +390,6 @@ def generate_billing(
             )
 
             visit_id = visit["visit_id"]
-            admission_id = None
 
             patient_id = visit["patient_id"]
             hospital_id = visit["hospital_id"]
@@ -492,9 +405,13 @@ def generate_billing(
             )
 
             bill_end = min(
-                visit_date + pd.Timedelta(days=3).to_pytimedelta(),
-                historical_end
+                visit_date
+                + pd.Timedelta(days=3).to_pytimedelta(),
+                effective_end
             )
+
+            if bill_start > bill_end:
+                bill_start = bill_end
 
             bill_date = fake.date_between(
                 start_date=bill_start,
@@ -506,17 +423,18 @@ def generate_billing(
                 2500
             )
 
-        # --------------------------------
+        # ====================================
         # Diagnostic
-        # --------------------------------
+        # ====================================
 
         elif bill_category == "Diagnostic":
 
-            diagnostic = choose_unused_diagnostic()
+            diagnostic = (
+                choose_unused_diagnostic()
+            )
 
-            # If all diagnostic events have already
-            # been billed, fall back to consultation.
             if diagnostic is None:
+
                 bill_category = "Consultation"
 
                 visit = random.choice(
@@ -524,7 +442,6 @@ def generate_billing(
                 )
 
                 visit_id = visit["visit_id"]
-                admission_id = None
 
                 patient_id = visit["patient_id"]
                 hospital_id = visit["hospital_id"]
@@ -540,9 +457,13 @@ def generate_billing(
                 )
 
                 bill_end = min(
-                    visit_date + pd.Timedelta(days=3).to_pytimedelta(),
-                    historical_end
+                    visit_date
+                    + pd.Timedelta(days=3).to_pytimedelta(),
+                    effective_end
                 )
+
+                if bill_start > bill_end:
+                    bill_start = bill_end
 
                 bill_date = fake.date_between(
                     start_date=bill_start,
@@ -557,7 +478,6 @@ def generate_billing(
             else:
 
                 visit_id = diagnostic["visit_id"]
-                admission_id = None
 
                 patient_id = diagnostic["patient_id"]
                 hospital_id = diagnostic["hospital_id"]
@@ -573,9 +493,13 @@ def generate_billing(
                 )
 
                 bill_end = min(
-                    diagnostic_date + pd.Timedelta(days=1).to_pytimedelta(),
-                    historical_end
+                    diagnostic_date
+                    + pd.Timedelta(days=1).to_pytimedelta(),
+                    effective_end
                 )
+
+                if bill_start > bill_end:
+                    bill_start = bill_end
 
                 bill_date = fake.date_between(
                     start_date=bill_start,
@@ -595,9 +519,9 @@ def generate_billing(
                     2
                 )
 
-        # --------------------------------
+        # ====================================
         # Room
-        # --------------------------------
+        # ====================================
 
         elif bill_category == "Room":
 
@@ -605,12 +529,21 @@ def generate_billing(
                 admission_records
             )
 
-            visit_id = None
-            admission_id = admission["admission_id"]
+            admission_id = admission[
+                "admission_id"
+            ]
 
-            patient_id = admission["patient_id"]
-            hospital_id = admission["hospital_id"]
-            department_id = admission["department_id"]
+            patient_id = admission[
+                "patient_id"
+            ]
+
+            hospital_id = admission[
+                "hospital_id"
+            ]
+
+            department_id = admission[
+                "department_id"
+            ]
 
             admission_date = pd.to_datetime(
                 admission["admission_date"]
@@ -622,10 +555,7 @@ def generate_billing(
 
             if pd.isna(discharge_value):
 
-                discharge_date = min(
-                    historical_end,
-                    pd.Timestamp.today().date()
-                )
+                discharge_date = effective_end
 
             else:
 
@@ -640,7 +570,7 @@ def generate_billing(
 
             bill_end = min(
                 discharge_date,
-                historical_end
+                effective_end
             )
 
             if bill_start > bill_end:
@@ -669,37 +599,42 @@ def generate_billing(
 
             length_of_stay = max(
                 1,
-                int(admission["length_of_stay"])
+                int(
+                    admission[
+                        "length_of_stay"
+                    ]
+                )
             )
 
-            # A room bill represents a billing segment,
-            # not necessarily the entire admission.
             billed_days = random.randint(
                 1,
-                min(length_of_stay, 7)
+                min(
+                    length_of_stay,
+                    7
+                )
             )
 
             gross_amount = (
-                daily_rate * billed_days
+                daily_rate
+                * billed_days
             )
 
-        # --------------------------------
+        # ====================================
         # Procedure
-        # --------------------------------
+        # ====================================
 
         elif bill_category == "Procedure":
 
-            procedure = choose_unused_procedure()
+            procedure = (
+                choose_unused_procedure()
+            )
 
-            # If no unused completed procedure exists,
-            # use normal pharmacy billing instead.
             if procedure is None:
+
                 bill_category = "Pharmacy"
 
-                admission = None
-
                 use_admission = (
-                    admission_records
+                    bool(admission_records)
                     and random.random() < 0.45
                 )
 
@@ -709,12 +644,21 @@ def generate_billing(
                         admission_records
                     )
 
-                    visit_id = None
-                    admission_id = admission["admission_id"]
+                    admission_id = admission[
+                        "admission_id"
+                    ]
 
-                    patient_id = admission["patient_id"]
-                    hospital_id = admission["hospital_id"]
-                    department_id = admission["department_id"]
+                    patient_id = admission[
+                        "patient_id"
+                    ]
+
+                    hospital_id = admission[
+                        "hospital_id"
+                    ]
+
+                    department_id = admission[
+                        "department_id"
+                    ]
 
                     admission_date = pd.to_datetime(
                         admission["admission_date"]
@@ -725,14 +669,8 @@ def generate_billing(
                     ]
 
                     if pd.isna(discharge_value):
-
-                        discharge_date = min(
-                            historical_end,
-                            pd.Timestamp.today().date()
-                        )
-
+                        discharge_date = effective_end
                     else:
-
                         discharge_date = pd.to_datetime(
                             discharge_value
                         ).date()
@@ -744,7 +682,7 @@ def generate_billing(
 
                     bill_end = min(
                         discharge_date,
-                        historical_end
+                        effective_end
                     )
 
                     if bill_start > bill_end:
@@ -757,7 +695,11 @@ def generate_billing(
 
                     length_of_stay = max(
                         1,
-                        int(admission["length_of_stay"])
+                        int(
+                            admission[
+                                "length_of_stay"
+                            ]
+                        )
                     )
 
                     ward_multiplier = {
@@ -780,7 +722,9 @@ def generate_billing(
                         * ward_multiplier
                         * min(
                             1.75,
-                            0.80 + 0.12 * length_of_stay
+                            0.80
+                            + 0.12
+                            * length_of_stay
                         ),
                         2
                     )
@@ -791,12 +735,21 @@ def generate_billing(
                         visit_records
                     )
 
-                    visit_id = visit["visit_id"]
-                    admission_id = None
+                    visit_id = visit[
+                        "visit_id"
+                    ]
 
-                    patient_id = visit["patient_id"]
-                    hospital_id = visit["hospital_id"]
-                    department_id = visit["department_id"]
+                    patient_id = visit[
+                        "patient_id"
+                    ]
+
+                    hospital_id = visit[
+                        "hospital_id"
+                    ]
+
+                    department_id = visit[
+                        "department_id"
+                    ]
 
                     visit_date = pd.to_datetime(
                         visit["visit_date"]
@@ -808,9 +761,15 @@ def generate_billing(
                     )
 
                     bill_end = min(
-                        visit_date + pd.Timedelta(days=3).to_pytimedelta(),
-                        historical_end
+                        visit_date
+                        + pd.Timedelta(
+                            days=3
+                        ).to_pytimedelta(),
+                        effective_end
                     )
+
+                    if bill_start > bill_end:
+                        bill_start = bill_end
 
                     bill_date = fake.date_between(
                         start_date=bill_start,
@@ -824,12 +783,21 @@ def generate_billing(
 
             else:
 
-                admission_id = procedure["admission_id"]
-                visit_id = None
+                admission_id = procedure[
+                    "admission_id"
+                ]
 
-                patient_id = procedure["patient_id"]
-                hospital_id = procedure["hospital_id"]
-                department_id = procedure["department_id"]
+                patient_id = procedure[
+                    "patient_id"
+                ]
+
+                hospital_id = procedure[
+                    "hospital_id"
+                ]
+
+                department_id = procedure[
+                    "department_id"
+                ]
 
                 procedure_date = pd.to_datetime(
                     procedure["procedure_date"]
@@ -841,9 +809,15 @@ def generate_billing(
                 )
 
                 bill_end = min(
-                    procedure_date + pd.Timedelta(days=1).to_pytimedelta(),
-                    historical_end
+                    procedure_date
+                    + pd.Timedelta(
+                        days=1
+                    ).to_pytimedelta(),
+                    effective_end
                 )
+
+                if bill_start > bill_end:
+                    bill_start = bill_end
 
                 bill_date = fake.date_between(
                     start_date=bill_start,
@@ -863,21 +837,20 @@ def generate_billing(
                     2
                 )
 
-        # --------------------------------
+        # ====================================
         # Surgery
-        # --------------------------------
+        # ====================================
 
         elif bill_category == "Surgery":
 
             surgery = choose_unused_surgery()
 
-            # If no unused completed surgery exists,
-            # use normal pharmacy billing instead.
             if surgery is None:
+
                 bill_category = "Pharmacy"
 
                 use_admission = (
-                    admission_records
+                    bool(admission_records)
                     and random.random() < 0.45
                 )
 
@@ -887,12 +860,21 @@ def generate_billing(
                         admission_records
                     )
 
-                    visit_id = None
-                    admission_id = admission["admission_id"]
+                    admission_id = admission[
+                        "admission_id"
+                    ]
 
-                    patient_id = admission["patient_id"]
-                    hospital_id = admission["hospital_id"]
-                    department_id = admission["department_id"]
+                    patient_id = admission[
+                        "patient_id"
+                    ]
+
+                    hospital_id = admission[
+                        "hospital_id"
+                    ]
+
+                    department_id = admission[
+                        "department_id"
+                    ]
 
                     admission_date = pd.to_datetime(
                         admission["admission_date"]
@@ -903,14 +885,8 @@ def generate_billing(
                     ]
 
                     if pd.isna(discharge_value):
-
-                        discharge_date = min(
-                            historical_end,
-                            pd.Timestamp.today().date()
-                        )
-
+                        discharge_date = effective_end
                     else:
-
                         discharge_date = pd.to_datetime(
                             discharge_value
                         ).date()
@@ -922,7 +898,7 @@ def generate_billing(
 
                     bill_end = min(
                         discharge_date,
-                        historical_end
+                        effective_end
                     )
 
                     if bill_start > bill_end:
@@ -935,7 +911,11 @@ def generate_billing(
 
                     length_of_stay = max(
                         1,
-                        int(admission["length_of_stay"])
+                        int(
+                            admission[
+                                "length_of_stay"
+                            ]
+                        )
                     )
 
                     ward_multiplier = {
@@ -958,7 +938,9 @@ def generate_billing(
                         * ward_multiplier
                         * min(
                             1.75,
-                            0.80 + 0.12 * length_of_stay
+                            0.80
+                            + 0.12
+                            * length_of_stay
                         ),
                         2
                     )
@@ -969,12 +951,21 @@ def generate_billing(
                         visit_records
                     )
 
-                    visit_id = visit["visit_id"]
-                    admission_id = None
+                    visit_id = visit[
+                        "visit_id"
+                    ]
 
-                    patient_id = visit["patient_id"]
-                    hospital_id = visit["hospital_id"]
-                    department_id = visit["department_id"]
+                    patient_id = visit[
+                        "patient_id"
+                    ]
+
+                    hospital_id = visit[
+                        "hospital_id"
+                    ]
+
+                    department_id = visit[
+                        "department_id"
+                    ]
 
                     visit_date = pd.to_datetime(
                         visit["visit_date"]
@@ -986,9 +977,15 @@ def generate_billing(
                     )
 
                     bill_end = min(
-                        visit_date + pd.Timedelta(days=3).to_pytimedelta(),
-                        historical_end
+                        visit_date
+                        + pd.Timedelta(
+                            days=3
+                        ).to_pytimedelta(),
+                        effective_end
                     )
+
+                    if bill_start > bill_end:
+                        bill_start = bill_end
 
                     bill_date = fake.date_between(
                         start_date=bill_start,
@@ -1002,12 +999,21 @@ def generate_billing(
 
             else:
 
-                admission_id = surgery["admission_id"]
-                visit_id = None
+                admission_id = surgery[
+                    "admission_id"
+                ]
 
-                patient_id = surgery["patient_id"]
-                hospital_id = surgery["hospital_id"]
-                department_id = surgery["department_id"]
+                patient_id = surgery[
+                    "patient_id"
+                ]
+
+                hospital_id = surgery[
+                    "hospital_id"
+                ]
+
+                department_id = surgery[
+                    "department_id"
+                ]
 
                 procedure_date = pd.to_datetime(
                     surgery["procedure_date"]
@@ -1019,9 +1025,15 @@ def generate_billing(
                 )
 
                 bill_end = min(
-                    procedure_date + pd.Timedelta(days=1).to_pytimedelta(),
-                    historical_end
+                    procedure_date
+                    + pd.Timedelta(
+                        days=1
+                    ).to_pytimedelta(),
+                    effective_end
                 )
+
+                if bill_start > bill_end:
+                    bill_start = bill_end
 
                 bill_date = fake.date_between(
                     start_date=bill_start,
@@ -1041,14 +1053,14 @@ def generate_billing(
                     2
                 )
 
-        # --------------------------------
+        # ====================================
         # Pharmacy
-        # --------------------------------
+        # ====================================
 
         else:
 
             use_admission = (
-                admission_records
+                bool(admission_records)
                 and random.random() < 0.45
             )
 
@@ -1058,12 +1070,21 @@ def generate_billing(
                     admission_records
                 )
 
-                visit_id = None
-                admission_id = admission["admission_id"]
+                admission_id = admission[
+                    "admission_id"
+                ]
 
-                patient_id = admission["patient_id"]
-                hospital_id = admission["hospital_id"]
-                department_id = admission["department_id"]
+                patient_id = admission[
+                    "patient_id"
+                ]
+
+                hospital_id = admission[
+                    "hospital_id"
+                ]
+
+                department_id = admission[
+                    "department_id"
+                ]
 
                 admission_date = pd.to_datetime(
                     admission["admission_date"]
@@ -1074,14 +1095,8 @@ def generate_billing(
                 ]
 
                 if pd.isna(discharge_value):
-
-                    discharge_date = min(
-                        historical_end,
-                        pd.Timestamp.today().date()
-                    )
-
+                    discharge_date = effective_end
                 else:
-
                     discharge_date = pd.to_datetime(
                         discharge_value
                     ).date()
@@ -1093,7 +1108,7 @@ def generate_billing(
 
                 bill_end = min(
                     discharge_date,
-                    historical_end
+                    effective_end
                 )
 
                 if bill_start > bill_end:
@@ -1106,7 +1121,11 @@ def generate_billing(
 
                 length_of_stay = max(
                     1,
-                    int(admission["length_of_stay"])
+                    int(
+                        admission[
+                            "length_of_stay"
+                        ]
+                    )
                 )
 
                 ward_multiplier = {
@@ -1129,7 +1148,9 @@ def generate_billing(
                     * ward_multiplier
                     * min(
                         1.75,
-                        0.80 + 0.12 * length_of_stay
+                        0.80
+                        + 0.12
+                        * length_of_stay
                     ),
                     2
                 )
@@ -1140,12 +1161,21 @@ def generate_billing(
                     visit_records
                 )
 
-                visit_id = visit["visit_id"]
-                admission_id = None
+                visit_id = visit[
+                    "visit_id"
+                ]
 
-                patient_id = visit["patient_id"]
-                hospital_id = visit["hospital_id"]
-                department_id = visit["department_id"]
+                patient_id = visit[
+                    "patient_id"
+                ]
+
+                hospital_id = visit[
+                    "hospital_id"
+                ]
+
+                department_id = visit[
+                    "department_id"
+                ]
 
                 visit_date = pd.to_datetime(
                     visit["visit_date"]
@@ -1157,9 +1187,15 @@ def generate_billing(
                 )
 
                 bill_end = min(
-                    visit_date + pd.Timedelta(days=3).to_pytimedelta(),
-                    historical_end
+                    visit_date
+                    + pd.Timedelta(
+                        days=3
+                    ).to_pytimedelta(),
+                    effective_end
                 )
+
+                if bill_start > bill_end:
+                    bill_start = bill_end
 
                 bill_date = fake.date_between(
                     start_date=bill_start,
@@ -1171,9 +1207,9 @@ def generate_billing(
                     10000
                 )
 
-        # --------------------------------
+        # ====================================
         # Patient insurance
-        # --------------------------------
+        # ====================================
 
         patient = patient_lookup[
             patient_id
@@ -1183,9 +1219,9 @@ def generate_billing(
             "insurance_type"
         ]
 
-        # --------------------------------
+        # ====================================
         # Discount
-        # --------------------------------
+        # ====================================
 
         discount_percentage = random.uniform(
             0.00,
@@ -1193,22 +1229,24 @@ def generate_billing(
         )
 
         discount_amount = round(
-            gross_amount * discount_percentage,
+            gross_amount
+            * discount_percentage,
             2
         )
 
-        # --------------------------------
+        # ====================================
         # Total
-        # --------------------------------
+        # ====================================
 
         total_amount = round(
-            gross_amount - discount_amount,
+            gross_amount
+            - discount_amount,
             2
         )
 
-        # --------------------------------
+        # ====================================
         # Insurance contribution
-        # --------------------------------
+        # ====================================
 
         if insurance_type == "Self Pay":
 
@@ -1222,7 +1260,8 @@ def generate_billing(
             )
 
             insurance_amount = round(
-                total_amount * insurance_percentage,
+                total_amount
+                * insurance_percentage,
                 2
             )
 
@@ -1234,22 +1273,24 @@ def generate_billing(
             )
 
             insurance_amount = round(
-                total_amount * insurance_percentage,
+                total_amount
+                * insurance_percentage,
                 2
             )
 
-        # --------------------------------
+        # ====================================
         # Patient contribution
-        # --------------------------------
+        # ====================================
 
         patient_amount = round(
-            total_amount - insurance_amount,
+            total_amount
+            - insurance_amount,
             2
         )
 
-        # --------------------------------
+        # ====================================
         # Payment status
-        # --------------------------------
+        # ====================================
 
         payment_status = random.choices(
             [
@@ -1265,9 +1306,17 @@ def generate_billing(
             k=1
         )[0]
 
-        # --------------------------------
-        # Create billing record
-        # --------------------------------
+        # ====================================
+        # Generate unique bill ID
+        # ====================================
+
+        bill_id = generate_id(
+            "billing"
+        )
+
+        # ====================================
+        # Create bill
+        # ====================================
 
         bill = {
             "bill_id": bill_id,
@@ -1276,7 +1325,7 @@ def generate_billing(
             "admission_id": admission_id,
             "hospital_id": hospital_id,
             "department_id": department_id,
-            "bill_date": bill_date,
+            "bill_date": bill_date.isoformat(),
             "bill_category": bill_category,
             "gross_amount": round(
                 gross_amount,
@@ -1291,17 +1340,15 @@ def generate_billing(
 
         data.append(bill)
 
-        bill_id += 1
-
-    # --------------------------------
+    # ========================================
     # DataFrame
-    # --------------------------------
+    # ========================================
 
     df = pd.DataFrame(data)
 
-    # --------------------------------
+    # ========================================
     # Schema-defined column order
-    # --------------------------------
+    # ========================================
 
     column_order = [
         column["name"]
@@ -1309,5 +1356,194 @@ def generate_billing(
     ]
 
     df = df[column_order]
+
+    # ========================================
+    # Final validations
+    # ========================================
+
+    if len(df) != number_of_bills:
+
+        raise ValueError(
+            f"Expected {number_of_bills} "
+            f"billing records but generated "
+            f"{len(df)}."
+        )
+
+    # ----------------------------------------
+    # Unique bill IDs
+    # ----------------------------------------
+
+    if df["bill_id"].duplicated().any():
+
+        raise ValueError(
+            "Duplicate billing IDs generated."
+        )
+
+    # ----------------------------------------
+    # Patient relationship
+    # ----------------------------------------
+
+    valid_patient_ids = set(
+        patient_df["patient_id"]
+    )
+
+    invalid_patient_ids = (
+        set(df["patient_id"])
+        - valid_patient_ids
+    )
+
+    if invalid_patient_ids:
+
+        raise ValueError(
+            "Billing contains invalid patient IDs: "
+            f"{invalid_patient_ids}"
+        )
+
+    # ----------------------------------------
+    # Visit relationship
+    # ----------------------------------------
+
+    valid_visit_ids = set(
+        visit_df["visit_id"]
+    )
+
+    billing_visit_ids = set(
+        df["visit_id"].dropna()
+    )
+
+    invalid_visit_ids = (
+        billing_visit_ids
+        - valid_visit_ids
+    )
+
+    if invalid_visit_ids:
+
+        raise ValueError(
+            "Billing contains invalid visit IDs: "
+            f"{invalid_visit_ids}"
+        )
+
+    # ----------------------------------------
+    # Admission relationship
+    # ----------------------------------------
+
+    valid_admission_ids = set(
+        admission_df["admission_id"]
+    )
+
+    billing_admission_ids = set(
+        df["admission_id"].dropna()
+    )
+
+    invalid_admission_ids = (
+        billing_admission_ids
+        - valid_admission_ids
+    )
+
+    if invalid_admission_ids:
+
+        raise ValueError(
+            "Billing contains invalid admission IDs: "
+            f"{invalid_admission_ids}"
+        )
+
+    # ----------------------------------------
+    # Financial formula:
+    #
+    # total = gross - discount
+    # ----------------------------------------
+
+    calculated_total = (
+        df["gross_amount"]
+        - df["discount_amount"]
+    ).round(2)
+
+    if not (
+        calculated_total
+        == df["total_amount"].round(2)
+    ).all():
+
+        raise ValueError(
+            "Billing financial formula failed: "
+            "total_amount != "
+            "gross_amount - discount_amount."
+        )
+
+    # ----------------------------------------
+    # Financial formula:
+    #
+    # insurance + patient = total
+    # ----------------------------------------
+
+    calculated_split = (
+        df["insurance_amount"]
+        + df["patient_amount"]
+    ).round(2)
+
+    if not (
+        calculated_split
+        == df["total_amount"].round(2)
+    ).all():
+
+        raise ValueError(
+            "Billing financial formula failed: "
+            "insurance_amount + patient_amount "
+            "!= total_amount."
+        )
+
+    # ----------------------------------------
+    # Amount validation
+    # ----------------------------------------
+
+    amount_columns = [
+        "gross_amount",
+        "discount_amount",
+        "insurance_amount",
+        "patient_amount",
+        "total_amount"
+    ]
+
+    for column in amount_columns:
+
+        if (
+            df[column] < 0
+        ).any():
+
+            raise ValueError(
+                f"Negative values found in "
+                f"{column}."
+            )
+
+    # ----------------------------------------
+    # Date validation
+    # ----------------------------------------
+
+    billing_dates = pd.to_datetime(
+        df["bill_date"]
+    )
+
+    if (
+        billing_dates
+        < pd.Timestamp(historical_start)
+    ).any():
+
+        raise ValueError(
+            "Billing date occurs before "
+            "historical start date."
+        )
+
+    if (
+        billing_dates
+        > pd.Timestamp(effective_end)
+    ).any():
+
+        raise ValueError(
+            "Billing date occurs after "
+            "effective end date."
+        )
+
+    # ========================================
+    # Return
+    # ========================================
 
     return df
